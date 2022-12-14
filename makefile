@@ -34,4 +34,5 @@ install:
 	sudo cp -f ./vdso/vdso.so /usr/local/bin/vdso.so
 	sudo mkdir -p /etc/quark/
 	sudo cp -f ./config.json /etc/quark/
+	sudo cp -f ./policy.json /etc/quark/
 

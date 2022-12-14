@@ -78,6 +78,7 @@ mod syncmgr;
 pub mod ucall;
 pub mod unix_socket_def;
 pub mod util;
+pub mod policy;
 mod vmspace;
 
 use alloc::sync::Arc;
@@ -100,6 +101,9 @@ use self::vmspace::hibernate::*;
 use self::vmspace::host_pma_keeper::*;
 use self::vmspace::hostfdnotifier::*;
 use self::vmspace::kernel_io_thread::*;
+
+use self::policy::*;
+
 //use crate::qlib::mem::bitmap_allocator::BitmapAllocatorWrapper;
 
 use self::vmspace::uringMgr::*;
@@ -150,6 +154,12 @@ lazy_static! {
         config.Load();
         Mutex::new(config)
     };
+    pub static ref POLICY: Mutex<Policy> = {
+        let mut policy = Policy::default();
+        policy.Load();
+        policy.Print();
+        Mutex::new(policy)
+    };
     pub static ref URING_MGR: Arc<Mutex<UringMgr>> = {
         let uringQueueSize = if QUARK_CONFIG.lock().UringBuf {
             1024
@@ -192,8 +202,12 @@ fn main() {
     }
 
     let shimMode = QUARK_CONFIG.lock().ShimMode;
+    
     if shimMode == true && &cmd != "boot" {
         error!("*********shim mode***************");
+        {
+            let policy = POLICY.lock();
+        }
         containerd_shim::run::<Service>("io.containerd.empty.v1", None)
     } else {
         let mut args = match Parse() {

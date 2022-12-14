@@ -1,0 +1,124 @@
+
+{
+    "default_action": "CRI_ACT_RETUREN_ERRNO",
+    "role": "Host",
+    "CriEndpoits": [
+        {
+            "name": "ATTACH",
+            "action": "CRI_ACT_ALLOW",
+            "opts": {
+                "stdin": false,   
+                "tty": false  
+            }
+        },
+
+        {
+            "name": "CREATE", 
+            "action": "CRI_ACT_ALLOW",
+            "opts": {}
+        },
+
+        {
+            "name": "EXEC",
+            "action": "CRI_ACT_ALLOW",
+            "opts": {
+                "interactive": false,   
+                "sync": true, 
+                "timeout": 5, 
+                "tty": false 
+            },
+            "auxiliary_array": ["/usr/bin/ls", "/usr/bin/cat", "/usr/bin/touch"]
+
+            
+        },
+
+        {
+            "name": "INSPECT",    
+            "action": "CRI_ACT_ALLOW",
+            "opts": {
+                "verbose": false
+            }
+        },
+
+        {
+            "name": "INSPECTP",
+            "action": "CRI_ACT_ALLOW",
+            "opts": {
+                "verbose": false
+            }
+        },
+
+        {
+            "name": "PORT_FORWARD",  
+            "action": "CRI_ACT_ALLOW",
+            "opts": {},
+            "auxiliary_array": [1200, 1500]
+        },
+
+        {
+            "name": "PS", 
+            "action": "CRI_ACT_ALLOW",
+            "opts": {  
+                    "verbose": false
+            }
+            
+        },
+
+        {
+            "name": "RUN",  
+            "action": "CRI_ACT_ALLOW",
+            "opts": {}
+        },
+
+        {
+            "name": "RUNP",    
+            "action": "CRI_ACT_ALLOW",
+            "opts": {}
+        },
+
+        {
+            "name": "RM",    
+            "action": "CRI_ACT_ALLOW",
+            "opts": {}
+        },
+
+        {
+            "name": "PODS",    
+            "action": "CRI_ACT_ALLOW",
+            "opts": {
+                "verbose": false  
+            }
+        },
+
+        {
+            "name": "START",    
+            "action": "CRI_ACT_ALLOW",
+            "opts": {}
+        },
+
+        {
+            "name": "STOP",    
+            "action": "CRI_ACT_ALLOW",
+            "opts": {}
+        },
+
+        {
+            "name": "STOPP",   
+            "action": "CRI_ACT_ALLOW",
+            "opts": {}
+        },
+
+        {
+            "name": "UPDATE",  
+            "action": "CRI_ACT_ALLOW",
+            "opts": {}
+        },
+
+        {
+            "name": "STATS",
+            "action": "CRI_ACT_ALLOW",     
+            "opts": {}
+        }
+    ]
+}
+

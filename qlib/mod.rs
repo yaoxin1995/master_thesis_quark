@@ -89,6 +89,8 @@ pub mod nvproxy;
 #[cfg(target_arch = "aarch64")]
 mod pagetable_aarch64;
 
+pub mod k8s_policy;
+
 use self::mutex::*;
 use alloc::vec::Vec;
 use cache_padded::CachePadded;
@@ -115,6 +117,8 @@ use self::qmsg::*;
 use self::rdma_svc_cli::*;
 use self::ringbuf::*;
 use self::task_mgr::*;
+
+use self::k8s_policy::*;
 
 pub fn InitSingleton() {
     unsafe {

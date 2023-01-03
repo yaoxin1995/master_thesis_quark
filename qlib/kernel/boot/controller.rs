@@ -158,7 +158,8 @@ pub fn SignalHandler(_: *const u8) {
 
 pub fn ControlMsgHandler(fd: *const u8) {
     let fd = fd as i32;
-
+    
+    info!("policy in qkernel: {:?}", SHARESPACE.k8s_policy.read());
     let task = Task::Current();
     let mut msg = ControlMsg::default();
     Kernel::HostSpace::ReadControlMsg(fd, &mut msg as *mut _ as u64);

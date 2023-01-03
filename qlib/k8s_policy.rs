@@ -25,7 +25,7 @@ pub enum Role {
 }
 
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct DebugModeOpt {
     pub enable_terminal: bool,
     pub single_shot_command_line_mode: bool,
@@ -49,9 +49,12 @@ pub struct Secret {
 
 
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Policy {
     pub debug_mode_opt: DebugModeOpt,
     pub single_shot_command_line_mode_configs: Vec<SingleShotCommandLineModeConfig>,
     pub secret: Secret,
 }
+
+
+

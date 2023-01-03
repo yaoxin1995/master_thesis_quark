@@ -131,6 +131,10 @@ mod syscalls;
 //use self::heap::QAllocator;
 //use qlib::mem::bitmap_allocator::BitmapAllocatorWrapper;
 
+
+use self::qlib::k8s_policy::*;
+
+
 //use buddy_system_allocator::*;
 //#[global_allocator]
 

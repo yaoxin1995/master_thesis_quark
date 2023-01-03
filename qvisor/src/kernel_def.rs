@@ -33,6 +33,8 @@ use super::QUARK_CONFIG;
 use super::URING_MGR;
 use super::VMS;
 
+use super::POLICY;
+
 impl std::error::Error for Error {}
 
 impl fmt::Display for Error {
@@ -108,6 +110,7 @@ impl ShareSpace {
         podId: [u8; 64],
     ) {
         *self.config.write() = *QUARK_CONFIG.lock();
+        *self.k8s_policy.write() = POLICY.lock().clone();
         let mut values = Vec::with_capacity(vcpuCount);
         for _i in 0..vcpuCount {
             values.push([AtomicU64::new(0), AtomicU64::new(0)])

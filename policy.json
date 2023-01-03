@@ -1,124 +1,43 @@
-
 {
-    "default_action": "CRI_ACT_RETUREN_ERRNO",
-    "role": "Host",
-    "CriEndpoits": [
-        {
-            "name": "ATTACH",
-            "action": "CRI_ACT_ALLOW",
-            "opts": {
-                "stdin": false,   
-                "tty": false  
-            }
+
+    "debug_mode_opt" :{
+        "enable_terminal": false,
+        "single_shot_command_line_mode": true,
+        "disable_container_logs_encryption":false
+    },
+
+    "single_shot_command_line_mode_configs": [
+        {   
+            "role": "DataOwner",
+            "allowed_cmd": ["cat", "ls"],
+            "allowed_dir": ["/usr/data_owner"]
         },
-
-        {
-            "name": "CREATE", 
-            "action": "CRI_ACT_ALLOW",
-            "opts": {}
+        {   
+            "role": "CodeOwner",
+            "allowed_cmd": ["cat", "ls"],
+            "allowed_dir": ["/usr/code_owner"]
         },
-
-        {
-            "name": "EXEC",
-            "action": "CRI_ACT_ALLOW",
-            "opts": {
-                "interactive": false,   
-                "sync": true, 
-                "timeout": 5, 
-                "tty": false 
-            },
-            "auxiliary_array": ["/usr/bin/ls", "/usr/bin/cat", "/usr/bin/touch"]
-
-            
-        },
-
-        {
-            "name": "INSPECT",    
-            "action": "CRI_ACT_ALLOW",
-            "opts": {
-                "verbose": false
-            }
-        },
-
-        {
-            "name": "INSPECTP",
-            "action": "CRI_ACT_ALLOW",
-            "opts": {
-                "verbose": false
-            }
-        },
-
-        {
-            "name": "PORT_FORWARD",  
-            "action": "CRI_ACT_ALLOW",
-            "opts": {},
-            "auxiliary_array": [1200, 1500]
-        },
-
-        {
-            "name": "PS", 
-            "action": "CRI_ACT_ALLOW",
-            "opts": {  
-                    "verbose": false
-            }
-            
-        },
-
-        {
-            "name": "RUN",  
-            "action": "CRI_ACT_ALLOW",
-            "opts": {}
-        },
-
-        {
-            "name": "RUNP",    
-            "action": "CRI_ACT_ALLOW",
-            "opts": {}
-        },
-
-        {
-            "name": "RM",    
-            "action": "CRI_ACT_ALLOW",
-            "opts": {}
-        },
-
-        {
-            "name": "PODS",    
-            "action": "CRI_ACT_ALLOW",
-            "opts": {
-                "verbose": false  
-            }
-        },
-
-        {
-            "name": "START",    
-            "action": "CRI_ACT_ALLOW",
-            "opts": {}
-        },
-
-        {
-            "name": "STOP",    
-            "action": "CRI_ACT_ALLOW",
-            "opts": {}
-        },
-
-        {
-            "name": "STOPP",   
-            "action": "CRI_ACT_ALLOW",
-            "opts": {}
-        },
-
-        {
-            "name": "UPDATE",  
-            "action": "CRI_ACT_ALLOW",
-            "opts": {}
-        },
-
-        {
-            "name": "STATS",
-            "action": "CRI_ACT_ALLOW",     
-            "opts": {}
+        {   
+            "role": "Host",
+            "allowed_cmd": ["cat", "ls"],
+            "allowed_dir": ["/usr/host"]
         }
-    ]
-}
+    ],
 
+    "secret": {
+        "file_encryption_key": "123",
+        "env_variables" : [
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "TERM=xterm"
+        ],
+        "cmd_arg": [
+            "sh"
+        ],
+        "secret_file_path":[
+            "/etc/conf1.d",
+            "/etc/conf2.d"
+        ]
+    }
+
+
+}

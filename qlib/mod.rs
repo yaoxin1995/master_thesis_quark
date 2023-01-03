@@ -712,6 +712,8 @@ pub struct ShareSpace {
     pub hostEpollfd: AtomicI32,
 
     pub values: Vec<[AtomicU64; 2]>,
+
+    pub k8s_policy:  CachePadded<QRwLock<Policy>>,
 }
 
 impl ShareSpace {

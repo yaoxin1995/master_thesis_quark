@@ -73,7 +73,6 @@ mod syncmgr;
 pub mod ucall;
 pub mod unix_socket_def;
 pub mod util;
-pub mod policy;
 mod vmspace;
 
 use alloc::sync::Arc;
@@ -89,13 +88,15 @@ use self::qlib::mem::list_allocator::*;
 use self::qlib::qmsg::*;
 use self::qlib::ShareSpace;
 use self::qlib::ShareSpaceRef;
+use self::qlib::k8s_policy::*;
 use self::runc::cmd::command::*;
 use self::runc::shim::service::*;
 use self::vmspace::host_pma_keeper::*;
 use self::vmspace::hostfdnotifier::*;
 use self::vmspace::kernel_io_thread::*;
 use self::vmspace::hibernate::*;
-use self::policy::*;
+
+
 //use crate::qlib::mem::bitmap_allocator::BitmapAllocatorWrapper;
 
 use self::vmspace::uringMgr::*;

@@ -157,8 +157,8 @@ pub fn StartSubContainerHandler(args: &mut StartArgs) -> Result<ControlMsg> {
     return Ok(msg);
 }
 
-pub fn IsOneShotCmdAllowedHandler () -> Result<ControlMsg> {
-    let msg = ControlMsg::New(Payload::IsOneShotCmdAllowed);
+pub fn IsOneShotCmdAllowedHandler (args: &mut OneShotCmdArgs) -> Result<ControlMsg> {
+    let msg = ControlMsg::New(Payload::IsOneShotCmdAllowed(args.clone()));
     return Ok(msg);
 }
 
@@ -181,7 +181,7 @@ pub fn ProcessReqHandler(req: &mut UCallReq, fds: &[i32]) -> Result<ControlMsg> 
         UCallReq::CreateSubContainer(args) => CreateSubContainerHandler(args, fds)?,
         UCallReq::StartSubContainer(args) => StartSubContainerHandler(args)?,
         UCallReq::WaitAll => WaitAll()?,
-        UCallReq::IsOneShotCmdAllowed => IsOneShotCmdAllowedHandler()?,
+        UCallReq::IsOneShotCmdAllowed(args) => IsOneShotCmdAllowedHandler(args)?,
         UCallReq::IsTerminalAllowed => IsTerminalAllowedHandler()?,
     };
 

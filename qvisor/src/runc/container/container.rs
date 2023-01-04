@@ -1109,12 +1109,16 @@ impl Container {
 
         match self.Sandbox.as_ref().unwrap().SandboxConnect() {
             Ok(client) => {
-                let mut ucall_req = UCallReq::IsTerminalAllowed;
-                
-                if req_type == RequestType::SingleShotCmdMode {
-                    ucall_req = UCallReq::IsOneShotCmdAllowed;
+                let ucall_req;
+                match req_type {
+                    RequestType::SingleShotCmdMode(ref arg) => {
+                        ucall_req = UCallReq::IsOneShotCmdAllowed(arg.clone());
+                    }
+                    RequestType::Terminal => {
+                        ucall_req = UCallReq::IsTerminalAllowed;
+                    }
                 }
-
+            
                 let resp = client.Call(&ucall_req).expect(&format!("req_autherity_check return error, req_type {:?}",  req_type));
 
                 let res = match resp {
@@ -1173,6 +1177,7 @@ pub struct ExecArgs {
     #[serde(default, skip_serializing, skip_deserializing)]
     pub Fds: Vec<i32>,
 }
+
 
 impl FileDescriptors for ExecArgs {
     fn GetFds(&self) -> Option<&[i32]> {

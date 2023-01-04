@@ -2,7 +2,7 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 use spin::mutex::Mutex;
-
+use super::control_msg::*;
 lazy_static! {
     pub static ref POLICY_CHEKCER : Mutex<PolicyChecher> = Mutex::new(PolicyChecher::default());
 }
@@ -48,11 +48,11 @@ pub struct Policy {
     pub secret: Secret,
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default)]
 pub enum RequestType {
-    Terminal,  // define a white list
     #[default]
-    SingleShotCmdMode,  // define a black list
+    Terminal,  // define a white list
+    SingleShotCmdMode(OneShotCmdArgs),  // define a black list
 }
 
 #[derive(Debug, Default)]
@@ -79,8 +79,10 @@ impl PolicyChecher {
 
     }
 
-    pub fn single_shot_command_line_mode_check (&self) -> bool {
+    pub fn single_shot_command_line_mode_check (&self, oneShotCmdArgs: OneShotCmdArgs) -> bool {
 
+
+        info!("oneShotCmdArgs is {:?}", oneShotCmdArgs);
         if self.policy.debug_mode_opt.single_shot_command_line_mode == false {
             return false;
         }

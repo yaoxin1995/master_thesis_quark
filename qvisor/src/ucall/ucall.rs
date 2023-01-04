@@ -40,7 +40,7 @@ pub enum UCallReq {
     StartSubContainer(StartArgs),
     WaitAll,
     IsTerminalAllowed,
-    IsOneShotCmdAllowed,
+    IsOneShotCmdAllowed(OneShotCmdArgs),
 }
 
 impl FileDescriptors for UCallReq {

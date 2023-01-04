@@ -41,6 +41,7 @@ use super::container_io::*;
 use super::process::*;
 
 use super::super::super::qlib::k8s_shielding::*;
+use super::super::super::qlib::control_msg::*;
 
 
 #[derive(Clone, Default)]
@@ -211,7 +212,24 @@ impl CommonContainer {
             policy_req = RequestType::Terminal;
         }
         else {
-            policy_req = RequestType::SingleShotCmdMode;
+            //Todo: encrypt the env, args, cwd on client side and decrypt them in qkernel
+            let mut args = Vec::new();
+            for arg in &exec_process.spec.args {
+                args.push(arg.clone());
+            }
+    
+            let mut envv = Vec::new();
+            for env in &exec_process.spec.env {
+                envv.push(env.clone())
+            }
+
+            let cmd_args = OneShotCmdArgs {
+                args: args,
+                env: envv,
+                cwd: exec_process.spec.cwd.clone(),
+            };
+
+            policy_req = RequestType::SingleShotCmdMode(cmd_args);
         }
         let is_req_allowed = self.container.req_autherity_check(policy_req);
 

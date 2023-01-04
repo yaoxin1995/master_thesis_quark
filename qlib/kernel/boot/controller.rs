@@ -246,8 +246,8 @@ pub fn ControlMsgHandler(fd: *const u8) {
             WriteControlMsgResp(fd, &UCallResp::IsTerminalAllowedResp(is_allowd), true);
         }
 
-        Payload::IsOneShotCmdAllowed => {
-            let is_allowd = crate::POLICY_CHEKCER.lock().single_shot_command_line_mode_check();
+        Payload::IsOneShotCmdAllowed(oneShotCmd) => {
+            let is_allowd = crate::POLICY_CHEKCER.lock().single_shot_command_line_mode_check(oneShotCmd);
             WriteControlMsgResp(fd, &&UCallResp::IsOneShotCmdAllowedResp(is_allowd), true);
         }
 

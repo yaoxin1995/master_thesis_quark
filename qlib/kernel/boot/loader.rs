@@ -172,6 +172,8 @@ impl Loader {
 
     //Exec a new process in current sandbox, it supports 'runc exec'
     pub fn ExecProcess(&self, process: Process) -> Result<(i32, u64, u64, u64)> {
+        info!("ExecProcess {:?}", process);
+        
         let task = Task::Current();
         let kernel = self.Lock(task)?.kernel.clone();
         let userns = kernel.RootUserNamespace();

@@ -454,6 +454,8 @@ pub enum Error {
 
     InvalidArgument(String),
     ContainerdShim(String),
+
+    NotSupport,
 }
 
 impl Error {

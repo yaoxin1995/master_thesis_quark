@@ -40,6 +40,9 @@ use super::super::container::container::*;
 use super::container_io::*;
 use super::process::*;
 
+use super::super::super::qlib::k8s_shielding::*;
+
+
 #[derive(Clone, Default)]
 pub struct ContainerFactory {}
 
@@ -198,6 +201,20 @@ impl CommonContainer {
         let exec_id = req.exec_id.to_string();
         let mut exec_process =
             ExecProcess::try_from(req).map_err(|e| Error::Common(format!("{:?}", e)))?;
+
+        let policy_req;
+        if exec_process.terminal() == true {
+            policy_req = RequestType::Terminal;
+        }
+        else {
+            policy_req = RequestType::SingleShotCmdMode;
+        }
+        let is_req_allowed = self.container.req_autherity_check(policy_req);
+
+        if !is_req_allowed {
+            info!("req exec is rejected, terminal mode {:?}", exec_process.terminal());
+            return Err(Error::NotSupport);
+        }
 
         let stdio = exec_process.common.stdio.CreateIO()?;
         exec_process.common.containerIO = stdio;
@@ -496,4 +513,6 @@ impl CommonContainer {
     pub fn pid(&self) -> i32 {
         self.init.pid()
     }
+
+
 }

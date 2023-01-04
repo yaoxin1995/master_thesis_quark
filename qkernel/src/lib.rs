@@ -133,9 +133,7 @@ use self::qlib::kernel::VcpuFreqInit;
 use self::quring::*;
 //use self::heap::QAllocator;
 //use qlib::mem::bitmap_allocator::BitmapAllocatorWrapper;
-
-
-use self::qlib::k8s_policy::*;
+use self::qlib::k8s_shielding::*;
 
 
 pub const HEAP_START: usize = 0x70_2000_0000;
@@ -218,6 +216,8 @@ pub fn SingletonInit() {
         task::InitSingleton();
 
         qlib::InitSingleton();
+
+        POLICY_CHEKCER.lock().init(SHARESPACE.k8s_policy.as_mut_ptr().as_ref());
     }
 }
 
@@ -496,6 +496,10 @@ pub extern "C" fn rust_main(
     interrupt::init();
 
     /***************** can't run any qcall before this point ************************************/
+
+    {
+        POLICY_CHEKCER.lock().print_policy();
+    }
 
     if id == 0 {
         //error!("start main: {}", ::AllocatorPrint(10));

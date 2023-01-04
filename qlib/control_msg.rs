@@ -117,6 +117,8 @@ pub enum Payload {
     CreateSubContainer(CreateArgs),
     StartSubContainer(StartArgs),
     WaitAll,
+    IsTerminalAllowed,
+    IsOneShotCmdAllowed,
 }
 
 impl Default for Payload {
@@ -150,6 +152,8 @@ pub enum UCallResp {
     CreateSubContainerResp,
     StartSubContainerResp,
     WaitAllResp(WaitAllResp),
+    IsTerminalAllowedResp(bool),
+    IsOneShotCmdAllowedResp(bool),
 }
 
 #[derive(Serialize, Deserialize, Debug)]

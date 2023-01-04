@@ -36,6 +36,7 @@ use super::super::IOURING;
 use super::super::LOADER;
 use super::super::SHARESPACE;
 use super::process::*;
+
 //use crate::qlib::kernel::vcpu::CPU_LOCAL;
 
 pub fn ControllerProcessHandler() -> Result<()> {
@@ -227,6 +228,18 @@ pub fn ControlMsgHandler(fd: *const u8) {
         Payload::WaitAll => {
             SetWaitContainerfd(fd);
         }
+
+        // policy checker specified
+        Payload::IsTerminalAllowed => {
+            let is_allowd = crate::POLICY_CHEKCER.lock().terminal_endpointer_check();
+            WriteControlMsgResp(fd, &UCallResp::IsTerminalAllowedResp(is_allowd), true);
+        }
+
+        Payload::IsOneShotCmdAllowed => {
+            let is_allowd = crate::POLICY_CHEKCER.lock().single_shot_command_line_mode_check();
+            WriteControlMsgResp(fd, &&UCallResp::IsOneShotCmdAllowedResp(is_allowd), true);
+        }
+
     }
 
     // free curent task in the waitfn context

@@ -1260,7 +1260,7 @@ impl PageTables {
         if flags & PageTableFlags::BIT_9 == PageTableFlags::BIT_9 {
             let needSwapin = {
                 let _l = crate::GLOBAL_LOCK.lock();
-
+                
                 let mut flags = pteEntry.flags();
 
                 // the page has been swaped in

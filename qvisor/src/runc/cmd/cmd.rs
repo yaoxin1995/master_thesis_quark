@@ -25,7 +25,7 @@ use super::super::runtime::loader::*;
 use super::super::runtime::vm::*;
 use super::command::*;
 
-use super::super::super::qlib::k8s_policy::*;
+use super::super::super::qlib::k8s_shielding::*;
 
 #[derive(Debug)]
 pub struct CmdCmd {

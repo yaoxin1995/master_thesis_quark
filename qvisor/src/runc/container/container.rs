@@ -45,6 +45,9 @@ use super::super::sandbox::sandbox::*;
 use super::super::shim::container_io::*;
 use super::super::specutils::specutils::*;
 
+use super::super::super::qlib::k8s_shielding::*;
+
+
 // metadataFilename is the name of the metadata file relative to the
 // container root directory that holds sandbox metadata.
 const METADATA_FILENAME: &str = "meta.json";
@@ -1153,6 +1156,43 @@ impl Container {
             self.StopSignal();
         }
         return ret;
+    }
+
+    pub fn req_autherity_check(&self, req_type: RequestType) -> bool {
+
+        match self.Sandbox.as_ref().unwrap().SandboxConnect() {
+            Ok(client) => {
+                let mut ucall_req = UCallReq::IsTerminalAllowed;
+                
+                if req_type == RequestType::SingleShotCmdMode {
+                    ucall_req = UCallReq::IsOneShotCmdAllowed;
+                }
+
+                let resp = client.Call(&ucall_req).expect(&format!("req_autherity_check return error, req_type {:?}",  req_type));
+
+                let res = match resp {
+                    UCallResp::IsOneShotCmdAllowedResp(r) => r,
+                    UCallResp::IsTerminalAllowedResp(r)=> r,
+                    _ => {
+                        error!("req_autherity_check not support resp....");
+                        false
+                    },
+                };
+
+                info!("req_autherity_check return {:?} for req {:?}", res ,req_type);
+                return res;
+
+            }
+            //the container has exited
+            Err(Error::SysError(SysErr::ECONNREFUSED)) => {
+                info!("req_autherity_check SandboxConnect: connect fail....");
+            }
+            Err(e) => {
+                info!("req_autherity_check SandboxConnect: connect fail, error {:?}" ,e);
+            }
+            
+        }
+        false
     }
 }
 

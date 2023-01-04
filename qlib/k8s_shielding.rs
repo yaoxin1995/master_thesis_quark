@@ -1,20 +1,12 @@
-// Copyright (c) 2021 Quark Container Authors / 2018 The gVisor Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 
 use alloc::string::String;
 use alloc::vec::Vec;
+use spin::mutex::Mutex;
+
+lazy_static! {
+    pub static ref POLICY_CHEKCER : Mutex<PolicyChecher> = Mutex::new(PolicyChecher::default());
+}
+
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub enum Role {
@@ -56,5 +48,49 @@ pub struct Policy {
     pub secret: Secret,
 }
 
+#[derive(Debug, Default, PartialEq)]
+pub enum RequestType {
+    Terminal,  // define a white list
+    #[default]
+    SingleShotCmdMode,  // define a black list
+}
 
+#[derive(Debug, Default)]
+pub struct PolicyChecher {
+    policy: Policy,
+}
+
+
+impl PolicyChecher {
+
+    pub fn init(&mut self, policy: Option<&Policy>) -> () {
+
+        self.policy = policy.unwrap().clone();
+    }
+
+    pub fn print_policy(&self) -> () {
+
+        info!("default policy:{:?}" ,self.policy);
+    }
+
+    pub fn terminal_endpointer_check (&self) -> bool {
+
+        self.policy.debug_mode_opt.enable_terminal
+
+    }
+
+    pub fn single_shot_command_line_mode_check (&self) -> bool {
+
+        if self.policy.debug_mode_opt.single_shot_command_line_mode == false {
+            return false;
+        }
+
+
+        return true;
+            
+
+    }
+
+
+}
 

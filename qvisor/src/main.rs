@@ -93,7 +93,7 @@ use self::qlib::mem::list_allocator::*;
 use self::qlib::qmsg::*;
 use self::qlib::ShareSpace;
 use self::qlib::ShareSpaceRef;
-use self::qlib::k8s_policy::*;
+use self::qlib::k8s_shielding::*;
 use self::runc::cmd::command::*;
 use self::runc::sandbox::sandbox::*;
 use self::runc::shim::service::*;
@@ -206,7 +206,7 @@ fn main() {
     if shimMode == true && &cmd != "boot" {
         error!("*********shim mode***************");
         {
-            let policy = POLICY.lock();
+            let _policy = POLICY.lock();
         }
         containerd_shim::run::<Service>("io.containerd.empty.v1", None)
     } else {

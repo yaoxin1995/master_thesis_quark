@@ -417,7 +417,7 @@ impl Task for ShimTask {
         let execId = req.get_exec_id().to_string();
         container
             .exec(req)
-            .map_err(|e| TtrpcError::Other(format!("{:?}", e)))?;
+            .map_err(|e| TtrpcError::FailedPreconditionError(format!("{:?}", e)))?;
 
         Self::SendEvent(
             &self.tx,

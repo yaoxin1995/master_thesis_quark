@@ -8,7 +8,7 @@ lazy_static! {
 }
 
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub enum Role {
     DataOwner,  // define a white list
     CodeOwner,  // define a black list
@@ -88,9 +88,37 @@ impl PolicyChecher {
         }
 
 
-        return true;
-            
 
+        return self.is_cmd_allowed(&Role::DataOwner, &oneShotCmdArgs.args);
+    }
+
+    fn is_cmd_allowed (&self, role: &Role, reqArgs: &Vec<String>) ->bool {
+        info!("is_cmd_allowed role {:?}, reqArgs: {:?}", role, reqArgs);
+        if reqArgs.len() <= 0 {
+            return false;
+        }
+        
+        let req_cmd = reqArgs.get(0).unwrap();
+
+        for conf in &self.policy.single_shot_command_line_mode_configs {
+
+            if &conf.role == role {
+                for cmd in &conf.allowed_cmd {
+                    if req_cmd.eq(cmd) {
+                        return true;
+                    }
+
+                }
+                return false;
+            }
+        }
+
+        false
+   
+    }
+
+    fn is_path_allowed () -> bool {
+        true
     }
 
 

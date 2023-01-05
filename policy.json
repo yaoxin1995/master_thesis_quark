@@ -10,12 +10,12 @@
         {   
             "role": "DataOwner",
             "allowed_cmd": ["cat", "ls"],
-            "allowed_dir": ["/usr/data_owner"]
+            "allowed_dir": ["/usr/data_owner/"]
         },
         {   
             "role": "CodeOwner",
             "allowed_cmd": ["cat", "ls"],
-            "allowed_dir": ["/usr/code_owner"]
+            "allowed_dir": ["/usr/code_owner/"]
         },
         {   
             "role": "Host",

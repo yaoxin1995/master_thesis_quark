@@ -203,6 +203,50 @@ pub fn IsAbs(path: &str) -> bool {
     return path.len() > 0 && path.as_bytes()[0] == '/' as u8;
 }
 
+pub fn IsPath (str: &str) -> bool {
+        
+    if str.len() <= 0 {
+        return false;
+    }
+
+    if IsAbs(str) {
+        return true;
+    }
+
+    if IsRel (str) {
+        return true;
+    }
+    false
+}
+
+pub fn IsRel (str: &str) -> bool {
+        
+    if str.len() <= 0 {
+        return false;
+    }
+
+    if IsAbs(str) {
+        return false;
+    }
+
+    let s = str.as_bytes();
+    for i in 0..s.len() {
+        if s[i] == '/' as u8 {
+            return true;
+        }
+    }
+
+
+    // 2 case: abc.abd  + ../../abc
+    let s = str.as_bytes();
+    for i in 0..s.len() {
+        if s[i] == '.' as u8 {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn Dir(path: &str) -> String {
     let (dir, _) = Split(path);
     return Clean(&dir.to_string());

@@ -20,7 +20,7 @@
         {   
             "role": "Host",
             "allowed_cmd": ["cat", "ls"],
-            "allowed_dir": ["/usr/host"]
+            "allowed_dir": ["/var"]
         }
     ],
 

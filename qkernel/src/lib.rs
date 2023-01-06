@@ -498,7 +498,7 @@ pub extern "C" fn rust_main(
     /***************** can't run any qcall before this point ************************************/
 
     {
-        POLICY_CHEKCER.lock().print_policy();
+        POLICY_CHEKCER.lock().printPolicy();
     }
 
     if id == 0 {

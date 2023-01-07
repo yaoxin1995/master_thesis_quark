@@ -25,10 +25,10 @@ $(kernel_debug): kernel_debug $(assembly_object_files)
 		$(assembly_object_files) $(qkernel_debug)
 
 kernel:
-	CARGO_TARGET_DIR=../target cargo xbuild --target x86_64-qkernel.json --release
+	RUSTFLAGS="--cfg aes_force_soft --cfg polyval_force_soft" CARGO_TARGET_DIR=../target cargo xbuild --target x86_64-qkernel.json --release
 
 kernel_debug:
-	CARGO_TARGET_DIR=../target cargo xbuild --target x86_64-qkernel.json
+	RUSTFLAGS="--cfg aes_force_soft --cfg polyval_force_soft" CARGO_TARGET_DIR=../target cargo xbuild --target x86_64-qkernel.json
 
 ../build/arch/$(arch)/%.o: src/qlib/kernel/arch/$(arch)/%.s
 	@mkdir -p $(shell dirname $@)

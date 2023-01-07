@@ -1,8 +1,8 @@
 .PHONY: debug release
 
 debug:
-	CARGO_TARGET_DIR=../target cargo build
+	RUSTFLAGS="--cfg aes_force_soft --cfg polyval_force_soft" CARGO_TARGET_DIR=../target cargo build
 
 release:
-	CARGO_TARGET_DIR=../target cargo build --release
+	RUSTFLAGS="--cfg aes_force_soft --cfg polyval_force_soft" CARGO_TARGET_DIR=../target cargo build --release
 

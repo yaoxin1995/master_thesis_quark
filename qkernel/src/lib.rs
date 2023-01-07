@@ -42,6 +42,10 @@ extern crate enum_dispatch;
 extern crate hashbrown;
 #[macro_use]
 extern crate lazy_static;
+
+
+
+
 #[macro_use]
 extern crate scopeguard;
 #[macro_use]
@@ -57,6 +61,20 @@ use core::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 use core::{mem, ptr};
 
 use spin::mutex::Mutex;
+// extern crate aes_gcm_siv;
+// use aes_gcm_siv::{
+//     aead::{Aead, KeyInit, OsRng},
+//     Aes256GcmSiv, Nonce // Or `Aes128GcmSiv`
+// };
+
+extern crate aes_gcm;
+use aes_gcm::{
+    aead::{Aead, KeyInit, OsRng},
+    Aes256Gcm, Nonce // Or `Aes128Gcm`
+};
+
+#[macro_use]
+mod print;
 
 use qlib::mutex::*;
 use taskMgr::{CreateTask, IOWait, WaitFn};
@@ -114,8 +132,7 @@ use self::syscalls::syscalls::*;
 use self::task::*;
 use self::threadmgr::task_sched::*;
 
-#[macro_use]
-mod print;
+
 
 //#[macro_use]
 //pub mod asm;
@@ -325,10 +342,8 @@ pub extern "C" fn syscall_handler(
         } else if llevel == LogLevel::Simple {
             tid = currTask.Thread().lock().id;
             pid = currTask.Thread().ThreadGroup().ID();
-            info!(
-                "({}/{})------get call id {:?} arg0:{:x}",
-                tid, pid, callId, arg0
-            );
+            info!("({}/{})------get call id {:?} arg0:{:x}, 1:{:x}, 2:{:x}, 3:{:x}, 4:{:x}, 5:{:x}, userstack:{:x}, return address:{:x}, fs:{:x}",
+            tid, pid, callId, arg0, arg1, arg2, arg3, arg4, arg5, currTask.GetPtRegs().rsp, currTask.GetPtRegs().rcx, GetFs());
         }
     }
 
@@ -536,6 +551,13 @@ pub extern "C" fn rust_main(
 
     {
         POLICY_CHEKCER.lock().printPolicy();
+        let key = Aes256Gcm::generate_key(&mut OsRng);
+        let cipher = Aes256Gcm::new(&key);
+        let nonce = Nonce::from_slice(b"unique nonce"); // 96-bits; unique per message
+        let ciphertext = cipher.encrypt(nonce, b"plaintext message".as_ref()).unwrap();
+        let plaintext = cipher.decrypt(nonce, ciphertext.as_ref()).unwrap();
+        assert_eq!(&plaintext, b"plaintext message");
+        info!("cipher {:#?}, plain {:#?}", ciphertext, plaintext);
     }
 
     if id == 0 {
@@ -544,6 +566,14 @@ pub extern "C" fn rust_main(
         //ALLOCATOR.Print();
         IOWait();
     };
+
+    let key = Aes256Gcm::generate_key(&mut OsRng);
+    let cipher = Aes256Gcm::new(&key);
+    let nonce = Nonce::from_slice(b"unique nonce"); // 96-bits; unique per message
+    let ciphertext = cipher.encrypt(nonce, b"plaintext message".as_ref()).unwrap();
+    let plaintext = cipher.decrypt(nonce, ciphertext.as_ref()).unwrap();
+    assert_eq!(&plaintext, b"plaintext message");
+    info!("cifertext {:?}, plain text {:?}", plaintext, ciphertext);
 
     if id == 1 {
         error!("heap start is {:x}", heapStart);

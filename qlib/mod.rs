@@ -67,7 +67,7 @@ pub mod unix_socket;
 pub mod hiber_mgr;
 pub mod proxy;
 
-pub mod k8s_shielding;
+pub mod shield_policy;
 
 use self::mutex::*;
 use alloc::vec::Vec;
@@ -96,7 +96,7 @@ use self::ringbuf::*;
 use self::task_mgr::*;
 use self::hiber_mgr::*;
 
-use self::k8s_shielding::*;
+use self::shield_policy::*;
 
 pub fn InitSingleton() {
     unsafe {

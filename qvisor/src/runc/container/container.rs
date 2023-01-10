@@ -45,7 +45,7 @@ use super::status::*;
 use super::super::shim::container_io::*;
 use super::super::runtime::fs::FsImageMounter;
 
-use super::super::super::qlib::k8s_shielding::*;
+use super::super::super::qlib::shield_policy::*;
 
 
 // metadataFilename is the name of the metadata file relative to the

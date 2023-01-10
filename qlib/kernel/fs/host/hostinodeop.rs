@@ -748,8 +748,10 @@ impl HostInodeOp {
         let iovs = buf.Iovs(len);
 
         let inodeType = self.InodeType();
+        let inode_id = _f.Dirent.inode.ID();
 
         if inodeType != InodeType::RegularFile && inodeType != InodeType::CharacterDevice {
+            info!("write data, inode_id {:?}", inode_id);
             let ret = IOWrite(hostIops.HostFd(), &iovs)?;
             return Ok(ret as i64);
         } else {

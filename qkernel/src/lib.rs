@@ -40,8 +40,9 @@ extern crate cache_padded;
 #[macro_use]
 extern crate alloc;
 
-
-
+extern crate postcard;
+extern crate aes_gcm;
+extern crate getrandom;
 
 #[macro_use]
 extern crate scopeguard;
@@ -65,11 +66,6 @@ extern crate enum_dispatch;
 //     Aes256GcmSiv, Nonce // Or `Aes128GcmSiv`
 // };
 
-extern crate aes_gcm;
-use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng},
-    Aes256Gcm, Nonce // Or `Aes128Gcm`
-};
 
 #[macro_use]
 mod print;
@@ -84,7 +80,9 @@ mod interrupt;
 pub mod kernel_def;
 pub mod rdma_def;
 mod syscalls;
+pub mod shielding_layer;
 
+use self::shielding_layer::*;
 use self::kernel_def::*;
 use self::interrupt::virtualization_handler;
 use self::qlib::kernel::arch;
@@ -148,7 +146,7 @@ use self::qlib::kernel::VcpuFreqInit;
 use self::quring::*;
 //use self::heap::QAllocator;
 //use qlib::mem::bitmap_allocator::BitmapAllocatorWrapper;
-use self::qlib::k8s_shielding::*;
+// use shielding_layer::*;
 
 
 pub const HEAP_START: usize = 0x70_2000_0000;
@@ -512,13 +510,6 @@ pub extern "C" fn rust_main(
 
     {
         POLICY_CHEKCER.lock().printPolicy();
-        let key = Aes256Gcm::generate_key(&mut OsRng);
-        let cipher = Aes256Gcm::new(&key);
-        let nonce = Nonce::from_slice(b"unique nonce"); // 96-bits; unique per message
-        let ciphertext = cipher.encrypt(nonce, b"plaintext message".as_ref()).unwrap();
-        let plaintext = cipher.decrypt(nonce, ciphertext.as_ref()).unwrap();
-        assert_eq!(&plaintext, b"plaintext message");
-        info!("cipher {:#?}, plain {:#?}", ciphertext, plaintext);
     }
 
     if id == 0 {
@@ -528,13 +519,6 @@ pub extern "C" fn rust_main(
         IOWait();
     };
 
-    let key = Aes256Gcm::generate_key(&mut OsRng);
-    let cipher = Aes256Gcm::new(&key);
-    let nonce = Nonce::from_slice(b"unique nonce"); // 96-bits; unique per message
-    let ciphertext = cipher.encrypt(nonce, b"plaintext message".as_ref()).unwrap();
-    let plaintext = cipher.decrypt(nonce, ciphertext.as_ref()).unwrap();
-    assert_eq!(&plaintext, b"plaintext message");
-    info!("cifertext {:?}, plain text {:?}", plaintext, ciphertext);
 
     if id == 1 {
         error!("heap start is {:x}", heapStart);

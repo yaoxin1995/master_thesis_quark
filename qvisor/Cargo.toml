@@ -58,6 +58,8 @@ userfaultfd = "0.4.2"
 enum_dispatch = { git = "https://github.com/QuarkContainer/enum_dispatch_clone.git" }
 getrandom = { version = "0.2", features = ["rdrand"] }
 aes-gcm = "0.10.1"
+postcard ={ version = "1.0", features = ["alloc"] }
+
 
 [dependencies.lazy_static]
 version = "1.4"

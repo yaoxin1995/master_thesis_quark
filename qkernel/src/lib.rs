@@ -43,8 +43,9 @@ extern crate hashbrown;
 #[macro_use]
 extern crate lazy_static;
 
-
-
+extern crate postcard;
+extern crate aes_gcm;
+extern crate getrandom;
 
 #[macro_use]
 extern crate scopeguard;
@@ -67,11 +68,6 @@ use spin::mutex::Mutex;
 //     Aes256GcmSiv, Nonce // Or `Aes128GcmSiv`
 // };
 
-extern crate aes_gcm;
-use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng},
-    Aes256Gcm, Nonce // Or `Aes128Gcm`
-};
 
 #[macro_use]
 mod print;
@@ -87,6 +83,16 @@ use self::asm::*;
 use self::boot::controller::*;
 use self::boot::loader::*;
 use self::kernel::timer::*;
+//#[macro_use]
+//pub mod asm;
+//mod taskMgr;
+#[macro_use]
+mod qlib;
+
+
+pub mod shielding_layer;
+
+use self::shielding_layer::*;
 use self::kernel_def::*;
 use self::loader::vdso::*;
 //use linked_list_allocator::LockedHeap;
@@ -137,8 +143,7 @@ use self::threadmgr::task_sched::*;
 //#[macro_use]
 //pub mod asm;
 //mod taskMgr;
-#[macro_use]
-mod qlib;
+
 #[macro_use]
 mod interrupt;
 pub mod kernel_def;
@@ -147,7 +152,7 @@ mod syscalls;
 
 //use self::heap::QAllocator;
 //use qlib::mem::bitmap_allocator::BitmapAllocatorWrapper;
-use self::qlib::k8s_shielding::*;
+// use shielding_layer::*;
 
 
 //use buddy_system_allocator::*;
@@ -551,13 +556,6 @@ pub extern "C" fn rust_main(
 
     {
         POLICY_CHEKCER.lock().printPolicy();
-        let key = Aes256Gcm::generate_key(&mut OsRng);
-        let cipher = Aes256Gcm::new(&key);
-        let nonce = Nonce::from_slice(b"unique nonce"); // 96-bits; unique per message
-        let ciphertext = cipher.encrypt(nonce, b"plaintext message".as_ref()).unwrap();
-        let plaintext = cipher.decrypt(nonce, ciphertext.as_ref()).unwrap();
-        assert_eq!(&plaintext, b"plaintext message");
-        info!("cipher {:#?}, plain {:#?}", ciphertext, plaintext);
     }
 
     if id == 0 {
@@ -567,13 +565,6 @@ pub extern "C" fn rust_main(
         IOWait();
     };
 
-    let key = Aes256Gcm::generate_key(&mut OsRng);
-    let cipher = Aes256Gcm::new(&key);
-    let nonce = Nonce::from_slice(b"unique nonce"); // 96-bits; unique per message
-    let ciphertext = cipher.encrypt(nonce, b"plaintext message".as_ref()).unwrap();
-    let plaintext = cipher.decrypt(nonce, ciphertext.as_ref()).unwrap();
-    assert_eq!(&plaintext, b"plaintext message");
-    info!("cifertext {:?}, plain text {:?}", plaintext, ciphertext);
 
     if id == 1 {
         error!("heap start is {:x}", heapStart);

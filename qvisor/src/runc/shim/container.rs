@@ -40,7 +40,7 @@ use super::super::container::container::*;
 use super::container_io::*;
 use super::process::*;
 
-use super::super::super::qlib::k8s_shielding::*;
+use super::super::super::qlib::shield_policy::*;
 use super::super::super::qlib::control_msg::*;
 
 

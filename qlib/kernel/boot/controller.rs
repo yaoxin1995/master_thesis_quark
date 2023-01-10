@@ -23,6 +23,10 @@ use crate::qlib::kernel::Kernel::HostSpace;
 use super::super::super::super::kernel_def::{
     StartExecProcess, StartRootContainer, StartSubContainerProcess,
 };
+use crate::qlib::linux::signal::*;
+// use super::super::super::super::kernel_def::{
+//     StartExecProcess, StartRootContainer, StartSubContainerProcess, POLICY_CHEKCER
+// };
 use super::super::super::common::*;
 use super::super::super::control_msg::*;
 use super::super::super::vcpu_mgr::*;
@@ -36,6 +40,14 @@ use super::super::LOADER;
 use super::super::SHARESPACE;
 use super::process::*;
 use crate::qlib::linux::signal::*;
+
+use super::super::super::super::kernel_def::*;
+
+use super::super::super::super::shielding_layer::POLICY_CHEKCER;
+
+
+
+
 //use crate::qlib::kernel::vcpu::CPU_LOCAL;
 
 pub fn ControllerProcessHandler() -> Result<()> {
@@ -242,12 +254,12 @@ pub fn ControlMsgHandler(fd: *const u8) {
 
         // policy checker specified
         Payload::IsTerminalAllowed => {
-            let is_allowd = crate::POLICY_CHEKCER.lock().terminalEndpointerCheck();
+            let is_allowd = POLICY_CHEKCER.lock().terminalEndpointerCheck();
             WriteControlMsgResp(fd, &UCallResp::IsTerminalAllowedResp(is_allowd), true);
         }
 
         Payload::IsOneShotCmdAllowed(oneShotCmd) => {
-            let is_allowd = crate::POLICY_CHEKCER.lock().singleShotCommandLineModeCheck(oneShotCmd);
+            let is_allowd = POLICY_CHEKCER.lock().singleShotCommandLineModeCheck(oneShotCmd);
             WriteControlMsgResp(fd, &&UCallResp::IsOneShotCmdAllowedResp(is_allowd), true);
         }
 

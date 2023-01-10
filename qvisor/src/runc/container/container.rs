@@ -45,7 +45,7 @@ use super::super::sandbox::sandbox::*;
 use super::super::shim::container_io::*;
 use super::super::specutils::specutils::*;
 
-use super::super::super::qlib::k8s_shielding::*;
+use super::super::super::qlib::shield_policy::*;
 
 
 // metadataFilename is the name of the metadata file relative to the

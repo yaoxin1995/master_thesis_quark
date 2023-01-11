@@ -44,6 +44,7 @@ use super::super::threadmgr::thread_group::*;
 use super::super::SignalDef::*;
 use super::super::SHARESPACE;
 use super::fs::*;
+use crate::qlib::shield_policy::*;
 
 impl Process {
     pub fn TaskCaps(&self) -> TaskCaps {
@@ -197,7 +198,7 @@ impl Loader {
         let mut ttyFileOps = None;
         if procArgs.Terminal {
             let file = task
-                .NewFileFromHostStdioFd(0, procArgs.Stdiofds[0], true)
+                .NewFileFromHostStdioFd(0, procArgs.Stdiofds[0], true, TrackInodeType::TTY)
                 .expect("Task: create std fds");
             file.flags.lock().0.NonBlocking = false; //need to clean the stdio nonblocking
 
@@ -257,7 +258,7 @@ impl Loader {
         let mut ttyFileOps = None;
         if procArgs.Terminal {
             let file = task
-                .NewFileFromHostStdioFd(0, procArgs.Stdiofds[0], true)
+                .NewFileFromHostStdioFd(0, procArgs.Stdiofds[0], true, TrackInodeType::TTY)
                 .expect("Task: create std fds");
             file.flags.lock().0.NonBlocking = false; //need to clean the stdio nonblocking
             assert!(task.Dup2(0, 1) == 1);
@@ -378,7 +379,7 @@ impl Loader {
                 ));
             }
             let file = task
-                .NewFileFromHostStdioFd(0, process.hostTTY, true)
+                .NewFileFromHostStdioFd(0, process.hostTTY, true, TrackInodeType::TTY)
                 .expect("Task: create std fds");
             file.flags.lock().0.NonBlocking = false;
 

@@ -236,8 +236,11 @@ impl Watches {
     // Notify queues a new event with all watches in this set.
     pub fn Notify(&self, name: &str, events: u32, cookie: u32, et: EventType, unlinked: bool) {
         if self.read().ws.len() == 0 {
+            info!("read == 0");
             return;
         }
+
+        info!("read != 0");
 
         let mut hasExpired = false;
         let mut watchArr = Vec::new();

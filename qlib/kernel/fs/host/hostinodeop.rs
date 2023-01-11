@@ -52,6 +52,9 @@ use super::hostfileop::*;
 use super::util::*;
 use super::*;
 
+use crate::shielding_layer::*;
+use crate::qlib::shield_policy::*;
+
 pub struct MappableInternal {
     //addr mapping from file offset to physical address
     pub f2pmap: BTreeMap<u64, u64>,
@@ -743,16 +746,57 @@ impl HostInodeOp {
             size
         };
 
-        let mut buf = DataBuff::New(size);
-        let len = task.CopyDataInFromIovs(&mut buf.buf, srcs, true)?;
-        let iovs = buf.Iovs(len);
+
+        
+        let mut buf= DataBuff::New(size);
+        let mut len = task.CopyDataInFromIovs(&mut buf.buf, srcs, true)?;
+
+        // info!("buf before {:?}, len: {:?}, {:?}", buf, len, String::from_utf8_lossy(&buf.buf));
 
         let inodeType = self.InodeType();
         let inode_id = _f.Dirent.inode.ID();
+        // {
+        //     let PolicyChecher = POLICY_CHEKCER.lock();
+        //     let trackedInodeType = PolicyChecher.getInodeType(&inode_id);
+        //     if inodeType == InodeType::Pipe && trackedInodeType.is_some(){
+        //         let trackedInodeType = trackedInodeType.unwrap();
+                
+        //         if trackedInodeType == &TrackInodeType::Stdin || trackedInodeType == &TrackInodeType::Stdout {
+        //             buf = PolicyChecher.encryptContainerStdouterr(buf);
+        //             len = buf.Len();
+        //         }
+        //     }
+        // }
 
+        // info!("buf after {:?}, len: {:?}", buf, len);
+        let mut iovs = buf.Iovs(len);
+        
+        /* 
+            Stdin/out/err is named piple, so it's inode type is InodeType::Pipe
+         */
         if inodeType != InodeType::RegularFile && inodeType != InodeType::CharacterDevice {
-            info!("write data, inode_id {:?}", inode_id);
-            let ret = IOWrite(hostIops.HostFd(), &iovs)?;
+            // assert!(len == buf.Len());
+            // info!("write data, inode_id {:?}", inode_id);
+            let old_len = len;
+            let PolicyChecher = POLICY_CHEKCER.lock();
+            let trackedInodeType = PolicyChecher.getInodeType(&inode_id);
+            if inodeType == InodeType::Pipe && trackedInodeType.is_some(){
+                let trackedInodeType = trackedInodeType.unwrap();
+                
+                if trackedInodeType == &TrackInodeType::Stderro || trackedInodeType == &TrackInodeType::Stdout {
+                    buf = PolicyChecher.encryptContainerStdouterr(buf);
+                    len = buf.Len();
+                }
+            }
+
+            iovs = buf.Iovs(len);
+            let mut ret = IOWrite(hostIops.HostFd(), &iovs)?;
+
+            if ret == len as i64 {
+                ret = old_len as i64;
+            }
+
+            info!("ok {:?}, ret {:?}, len:{:?}, old_len {:?}", inode_id, ret, len, old_len);
             return Ok(ret as i64);
         } else {
             let offset = if inodeType == InodeType::CharacterDevice {

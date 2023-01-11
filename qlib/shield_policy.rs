@@ -6,7 +6,7 @@ use super::control_msg::*;
 
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
-pub enum InodeType {
+pub enum TrackInodeType {
     Stdin,
     Stdout, 
     Stderro,

@@ -81,6 +81,9 @@ use crate::qlib::kernel::socket::hostinet::hostsocket::HostSocketOperations;
 use crate::qlib::kernel::socket::hostinet::socket::SocketOperations;
 use crate::qlib::kernel::socket::hostinet::uring_socket::UringSocketOperations;
 use crate::qlib::kernel::socket::unix::unix::UnixSocketOperations;
+use crate::shielding_layer::POLICY_CHEKCER;
+use crate::qlib::shield_policy::*;
+
 
 use super::attr::*;
 use super::dirent::*;
@@ -662,13 +665,7 @@ impl File {
         return File(Arc::new(f));
     }
 
-    pub fn NewFileFromFd(
-        task: &Task,
-        fd: i32,
-        mounter: &FileOwner,
-        stdio: bool,
-        isTTY: bool,
-    ) -> Result<Self> {
+    pub fn NewFileFromFd(task: &Task, fd: i32, mounter: &FileOwner, stdio: bool, isTTY: bool, inodeType: TrackInodeType) -> Result<Self> {
         let mut fstat = LibcStat::default();
 
         let ret = Fstat(fd, &mut fstat) as i32;
@@ -730,7 +727,11 @@ impl File {
                     let hostiops = iops.HostInodeOp().unwrap();
                     let fops = hostiops.GetHostFileOp(task);
                     let wouldBlock = inode.lock().InodeOp.WouldBlock();
-
+                    
+                    {
+                        let key = inode.ID();
+                        POLICY_CHEKCER.lock().addInoteToTrack(key, inodeType)
+                    }
                     if isTTY {
                         return Ok(Self::NewTTYFile(&dirent, &fileFlags, fops));
                     }

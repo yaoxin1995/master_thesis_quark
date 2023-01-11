@@ -1,20 +1,20 @@
-use core::convert::TryInto;
+use aes_gcm::aead::rand_core::RngCore;
+use alloc::string::String;
+use alloc::string::ToString;
+use alloc::vec::Vec;
+use alloc::collections::btree_map::BTreeMap;
+use spin::mutex::Mutex;
 
 use qlib::control_msg::*;
 use qlib::path::*;
 use qlib::common::*;
 use qlib::shield_policy::*;
-
-use alloc::string::String;
-use alloc::string::ToString;
-use alloc::vec::Vec;
-use spin::mutex::Mutex;
-use crate::getrandom::getrandom;
 use crate::aes_gcm::{
     aead::{Aead, KeyInit, OsRng, generic_array::{GenericArray, typenum::U32}},
     Aes256Gcm, Nonce, // Or `Aes128Gcm`
 };
-use alloc::collections::btree_map::BTreeMap;
+
+use super::qlib::linux_def::*;
 
 lazy_static! {
     pub static ref POLICY_CHEKCER :  Mutex< PolicyChecher> = Mutex::new(PolicyChecher::default());
@@ -28,7 +28,7 @@ pub struct PolicyChecher {
     policy: Policy,
     counter: i64,
     key: GenericArray<u8, U32>,
-    inode_track: BTreeMap<u64, InodeType>,
+    inode_track: BTreeMap<u64, TrackInodeType>,
 }
     
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -57,6 +57,7 @@ impl PolicyChecher {
         self.policy = policy.unwrap().clone();
         self.counter = 0;
        // self.key = policy.unwrap().secret.file_encryption_key.as_bytes().to_vec();
+        // todo: get key from policy file
         self.key = Aes256Gcm::generate_key(&mut OsRng);
         self.inode_track= BTreeMap::new();
     }
@@ -65,7 +66,6 @@ impl PolicyChecher {
 
         info!("default policy:{:?}" ,self.policy);
 
-        
         let key = Aes256Gcm::generate_key(&mut OsRng);
         let cipher = Aes256Gcm::new(&key);
         let nonce = Nonce::from_slice(b"unique nonce"); // 96-bits; unique per message
@@ -255,18 +255,22 @@ impl PolicyChecher {
 
 
     
-    pub fn encrypt(&self, plain_txt: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
+    fn encrypt(&self, plain_txt: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
         let cipher = Aes256Gcm::new(&self.key);
-        let nonce_rnd = random_bytes();
+
+        let mut nonce_rnd = vec![0; NONCE_LENGTH];
+        random_bytes(&mut nonce_rnd);
         let nonce = Nonce::from_slice(&nonce_rnd);
+
         let encrypt_msg = cipher.encrypt(nonce, plain_txt).map_err(|e| Error::Common(format!("failed to encryp the data error {:?}", e)))?;
+
         let mut cipher_txt = Vec::new();
         // cipher_txt.extend_from_slice(&nonce_rnd);
         cipher_txt.extend(encrypt_msg);
         Ok((cipher_txt, nonce_rnd.to_vec()))
     }
     
-    pub fn decrypt(&self, cipher_txt: &[u8], nouce: &[u8]) -> Result<Vec<u8>> {
+    fn decrypt(&self, cipher_txt: &[u8], nouce: &[u8]) -> Result<Vec<u8>> {
         // if cipher_txt.len() <= NONCE_LENGTH {
         //     bail!("cipher text is invalid");
         // }
@@ -280,13 +284,12 @@ impl PolicyChecher {
         Ok(plain_txt)
     }
         
-    pub fn prepareEncodedIoFrame(&self, plainText :&[u8]) -> Result<Vec<u8>> {
-    
-        const KEY: &[u8; 32] = b"a very simple secret key to use!";
+    fn prepareEncodedIoFrame(&self, plainText :&[u8]) -> Result<Vec<u8>> {
     
         let mut payload = PayLoad::default();
         payload.counter = 1;
         payload.data = plainText.to_vec();
+        assert!(payload.data.len() == plainText.len());
     
         let encoded_payload: Vec<u8> = postcard::to_allocvec(&payload).unwrap();
 
@@ -300,11 +303,10 @@ impl PolicyChecher {
     }
     
     
-    pub fn getDecodedPayloads(&self, encoded_payload :&Vec<u8>) -> Result<Vec<PayLoad>> {
+    fn getDecodedPayloads(&self, encoded_payload :&Vec<u8>) -> Result<Vec<PayLoad>> {
 
         let mut payloads = Vec::new();
-
-        let mut frame = IoFrame::default();
+        let mut frame;
         let mut payloads_slice= encoded_payload.as_slice();
     
         while payloads_slice.len() > 0 {
@@ -331,37 +333,65 @@ impl PolicyChecher {
     
     }
 
+    pub fn addInoteToTrack(&mut self, key: u64, value: TrackInodeType) -> (){
 
-
-    pub fn addInoteToTrack(&mut self, key: u64, value: InodeType) -> (){
-
+        info!("add inode id {:?}, type:{:?}", key, value);
         self.inode_track.insert(key, value);
-
     }
 
+    pub fn rmInoteToTrack(&mut self, key: u64) -> (){
+
+        let res = self.inode_track.remove_entry(&key);
+        let (_k, _v) = res.unwrap();
+        info!("removed inode id {:?}, type:{:?}", _k, _v);
+    }
 
     pub fn isInodeExist(&self, key: &u64) -> bool {
+
         self.inode_track.contains_key(key)
     }
 
 
-    pub fn getInodeType (&self, key: &u64) -> Option<&InodeType> {
+    pub fn getInodeType (&self, key: &u64) -> Option<&TrackInodeType> {
         
         return self.inode_track.get(key);
-    
     }
-    
+
+    pub fn encryptContainerStdouterr (&self, src: DataBuff) -> DataBuff {
+
+        if self.policy.debug_mode_opt.disable_container_logs_encryption {
+            return src;
+        }
+
+        let rawData= src.buf.clone();
+
+        let encodedOutBoundDate = self.prepareEncodedIoFrame(rawData.as_slice()).unwrap();
+        assert!(encodedOutBoundDate.len() != 0);
+
+        let mut res = DataBuff::New(encodedOutBoundDate.len());
 
 
+        res.buf = encodedOutBoundDate.clone();
+
+        for (i, el) in encodedOutBoundDate.iter().enumerate(){
+            assert!(res.buf[i] == *el);
+        }
+        
+        res
+
+    }
 }
 
 
-fn random_bytes() -> [u8; NONCE_LENGTH] {
-    let mut rmd_nonce= Vec::with_capacity(NONCE_LENGTH);
-    getrandom(&mut rmd_nonce).unwrap();
-    rmd_nonce.as_slice().try_into().unwrap()
+fn random_bytes(slice: &mut [u8]) -> (){
+    // let mut rmd_nonce= Vec::with_capacity(NONCE_LENGTH);
+    // getrandom(&mut rmd_nonce).unwrap();
+    assert!(slice.len() == NONCE_LENGTH);
+    let mut rng = OsRng;
+    rng.fill_bytes(slice);
+    info!("generate nounce {:?}", slice);
+    // rmd_nonce
     // thread_rng().gen::<[u8; NONCE_LENGTH]>()
-
 }
 
     

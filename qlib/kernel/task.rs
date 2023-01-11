@@ -56,6 +56,8 @@ use super::kernel::fs_context::*;
 use super::super::SysCallID;
 use super::asm::*;
 
+use crate::qlib::shield_policy::*;
+
 const DEFAULT_STACK_SIZE: usize = MemoryDef::DEFAULT_STACK_SIZE as usize;
 pub const DEFAULT_STACK_PAGES: u64 = DEFAULT_STACK_SIZE as u64 / (4 * 1024);
 pub const DEFAULT_STACK_MAST: u64 = !(DEFAULT_STACK_SIZE as u64 - 1);
@@ -472,17 +474,27 @@ impl Task {
     }
 
     pub fn NewStdFds(&mut self, stdfds: &[i32], isTTY: bool) -> Result<()> {
+
+        assert!(stdfds.len() == 3);
         for i in 0..stdfds.len() {
-            let file = self.NewFileFromHostStdioFd(i as i32, stdfds[i], isTTY)?;
+            let file;
+            if i == 0 {
+                file = self.NewFileFromHostStdioFd(i as i32, stdfds[i], isTTY, TrackInodeType::Stdin)?;
+            } else if i == 1 {
+                file = self.NewFileFromHostStdioFd(i as i32, stdfds[i], isTTY, TrackInodeType::Stdout)?;
+            } else {
+                file = self.NewFileFromHostStdioFd(i as i32, stdfds[i], isTTY, TrackInodeType::Stderro)?;
+            }
+                
             file.flags.lock().0.NonBlocking = false; //need to clean the stdio nonblocking
         }
 
         return Ok(());
     }
 
-    pub fn NewFileFromHostStdioFd(&mut self, fd: i32, hostfd: i32, isTTY: bool) -> Result<File> {
+    pub fn NewFileFromHostStdioFd(&mut self, fd: i32, hostfd: i32, isTTY: bool, inodeType: TrackInodeType) -> Result<File> {
         let fileOwner = self.FileOwner();
-        let file = File::NewFileFromFd(self, hostfd, &fileOwner, true, isTTY)?;
+        let file = File::NewFileFromFd(self, hostfd, &fileOwner, true, isTTY, inodeType)?;
         self.NewFDAt(fd, &Arc::new(file.clone()), &FDFlags::default())?;
         return Ok(file);
     }

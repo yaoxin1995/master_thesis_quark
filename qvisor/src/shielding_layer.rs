@@ -1,15 +1,13 @@
 use core::convert::TryInto;
-
-use super::qlib::control_msg::*;
-use super::qlib::path::*;
-use super::qlib::common::*;
-use super::qlib::shield_policy::*;
-
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use spin::mutex::Mutex;
 
+use super::qlib::control_msg::*;
+use super::qlib::path::*;
+use super::qlib::common::*;
+use super::qlib::shield_policy::*;
 use crate::getrandom::getrandom;
 use crate::aes_gcm::{
     aead::{Aead, KeyInit, OsRng, generic_array::{GenericArray, typenum::U32}},
@@ -17,18 +15,18 @@ use crate::aes_gcm::{
 };
 
 use alloc::collections::btree_map::BTreeMap;
+use super::qlib::linux_def::*;
 
 lazy_static! {
     pub static ref POLICY_CHEKCER : Mutex<PolicyChecher> = Mutex::new(PolicyChecher::default());
 }
-
 
 #[derive(Debug, Default)]
 pub struct PolicyChecher {
     policy: Policy,
     counter: i64,
     key: GenericArray<u8, U32>,
-    inode_track: BTreeMap<u64, InodeType>,
+    inode_track: BTreeMap<u64, TrackInodeType>,
 }
     
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -336,23 +334,49 @@ impl PolicyChecher {
 
 
     
-    pub fn addInoteToTrack(&mut self, key: u64, value: InodeType) -> (){
+    pub fn addInoteToTrack(&mut self, key: u64, value: TrackInodeType) -> (){
 
         self.inode_track.insert(key, value);
-
     }
 
+    pub fn rmInoteToTrack(&mut self, key: u64) -> (){
+
+        let res = self.inode_track.remove_entry(&key);
+        let (_k, _v) = res.unwrap();
+    }
 
     pub fn isInodeExist(&self, key: &u64) -> bool {
+
         self.inode_track.contains_key(key)
     }
 
 
-    pub fn getInodeType (&self, key: &u64) -> Option<&InodeType> {
+    pub fn getInodeType (&self, key: &u64) -> Option<&TrackInodeType> {
         
         return self.inode_track.get(key);
-    
     }
+
+    pub fn encryptContainerStdouterr (&self, src: DataBuff) -> DataBuff {
+
+        if self.policy.debug_mode_opt.disable_container_logs_encryption {
+            return src;
+        }
+
+        let rawData= src.buf.clone();
+
+        let encodedOutBoundDate = self.prepareEncodedIoFrame(rawData.as_slice()).unwrap();
+        assert!(encodedOutBoundDate.len() != 0);
+
+        let mut res = DataBuff::New(encodedOutBoundDate.len());
+
+        res.buf = encodedOutBoundDate;
+        
+        res
+
+    }
+
+
+
     
 
 }

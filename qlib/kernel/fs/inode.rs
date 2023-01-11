@@ -73,6 +73,7 @@ use crate::qlib::kernel::fs::ramfs::dir::Dir;
 use crate::qlib::kernel::fs::procfs::symlink_proc::SymlinkNode;
 use crate::qlib::kernel::fs::procfs::seqfile::SeqFile;
 use crate::qlib::kernel::fs::tmpfs::tmpfs_file::TmpfsFileInodeOp;
+use crate::shielding_layer::*;
 
 pub fn ContextCanAccessFile(task: &Task, inode: &Inode, reqPerms: &PermMask) -> Result<bool> {
     let creds = task.creds.clone();
@@ -390,6 +391,22 @@ impl Deref for Inode {
         &self.0
     }
 }
+
+impl Drop for Inode {
+    fn drop(&mut self) {
+        if Arc::strong_count(&self.0) == 1 {
+
+            let inodeId = self.0.lock().UniqueId;
+            info!("Drop inode id {:?}, strong count: {:?}, weak count: {:?}", inodeId, Arc::strong_count(&self.0), Arc::weak_count(&self.0));
+
+            if POLICY_CHEKCER.lock().isInodeExist(&inodeId) {
+                POLICY_CHEKCER.lock().rmInoteToTrack(inodeId);
+            }
+
+        }
+    }
+}
+
 
 impl Inode {
     pub fn Downgrade(&self) -> InodeWeak {

@@ -71,7 +71,7 @@ pub fn Fstatat(task: &Task, fd: i32, addr: u64, statAddr: u64, flags: i32) -> Re
         return Ok(0);
     }
 
-    let resolve = dirPath || flags & ATType::AT_SYMLINK_NOFOLLOW == 0;
+    let resolve = dirPath || flags & ATType::AT_SYMLINK_NOFOLLOW == 0; // false
 
     let ret = fileOpOn(
         task,

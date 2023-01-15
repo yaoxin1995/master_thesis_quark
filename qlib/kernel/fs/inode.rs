@@ -398,11 +398,17 @@ impl Drop for Inode {
 
             let inodeId = self.0.lock().UniqueId;
             info!("Drop inode id {:?}, strong count: {:?}, weak count: {:?}", inodeId, Arc::strong_count(&self.0), Arc::weak_count(&self.0));
+            {
+                let mut checker_locked = POLICY_CHEKCER.try_write();
+                while !checker_locked.is_some() {
+                    checker_locked = POLICY_CHEKCER.try_write();
+                }
 
-            if POLICY_CHEKCER.lock().isInodeExist(&inodeId) {
-                POLICY_CHEKCER.lock().rmInoteToTrack(inodeId);
+                let mut checker = checker_locked.unwrap();
+                if checker.isInodeExist(&inodeId) {
+                    checker.rmInoteToTrack(inodeId);
+                }
             }
-
         }
     }
 }
@@ -596,13 +602,15 @@ impl Inode {
     pub fn Lookup(&self, task: &Task, name: &str) -> Result<Dirent> {
         let isOverlay = self.lock().Overlay.is_some();
         if isOverlay {
+            info!("Lookup isoverlay: {:?}", name);
             let overlay = self.lock().Overlay.as_ref().unwrap().clone();
             let (dirent, _) = overlayLookup(task, &overlay, self, name)?;
             return Ok(dirent);
         }
-
+        
         let iops = self.lock().InodeOp.clone();
         let res = iops.Lookup(task, self, name);
+        info!("Lookup overlay: 1111 {:?}", name);
         return res;
     }
 

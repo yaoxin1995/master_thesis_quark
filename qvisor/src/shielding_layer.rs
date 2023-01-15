@@ -2,7 +2,8 @@ use core::convert::TryInto;
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
-use spin::mutex::Mutex;
+use spin::rwlock::RwLock;
+
 
 use super::qlib::control_msg::*;
 use super::qlib::path::*;
@@ -18,7 +19,7 @@ use alloc::collections::btree_map::BTreeMap;
 use super::qlib::linux_def::*;
 
 lazy_static! {
-    pub static ref POLICY_CHEKCER : Mutex<PolicyChecher> = Mutex::new(PolicyChecher::default());
+    pub static ref POLICY_CHEKCER :  RwLock<PolicyChecher> = RwLock::new(PolicyChecher::default());
 }
 
 #[derive(Debug, Default)]
@@ -346,16 +347,15 @@ impl PolicyChecher {
     }
 
     pub fn isInodeExist(&self, key: &u64) -> bool {
-
         self.inode_track.contains_key(key)
     }
 
 
-    pub fn getInodeType (&self, key: &u64) -> Option<&TrackInodeType> {
+    pub fn getInodeType (&self, key: &u64) ->  TrackInodeType{
         
-        return self.inode_track.get(key);
+        let res =  self.inode_track.get(key).unwrap().clone();
+        res
     }
-
     pub fn encryptContainerStdouterr (&self, src: DataBuff) -> DataBuff {
 
         if self.policy.debug_mode_opt.disable_container_logs_encryption {

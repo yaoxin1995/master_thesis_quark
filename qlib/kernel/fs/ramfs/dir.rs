@@ -257,6 +257,7 @@ impl InodeOperations for Dir {
         flags: &FileFlags,
         perms: &FilePermissions,
     ) -> Result<File> {
+        info!("dir iodno crate op inode id {:?}, name {:?}, flags{:?}  perms {:?}" ,dir.ID(), name, flags,perms);
         let mut d = self.write();
 
         let newFile = match d.CreateOps.NewFile {
@@ -279,6 +280,7 @@ impl InodeOperations for Dir {
         name: &str,
         perms: &FilePermissions,
     ) -> Result<()> {
+        info!("dir iodno CreateDirectory op inode id {:?}, name {:?}, perms {:?}" ,dir.ID(), name, perms);
         let mut d = self.write();
 
         let newDir = match d.CreateOps.NewDir {
@@ -301,6 +303,7 @@ impl InodeOperations for Dir {
         ep: &BoundEndpoint,
         perms: &FilePermissions,
     ) -> Result<Dirent> {
+        info!("dir iodno Bind op inode id {:?}, name {:?},  perms {:?}" ,dir.ID(), name,perms);
         let mut d = self.write();
 
         let newep = match d.CreateOps.NewBoundEndpoint {
@@ -325,6 +328,7 @@ impl InodeOperations for Dir {
 
     fn CreateLink(&self, task: &Task, dir: &mut Inode, oldname: &str, newname: &str) -> Result<()> {
         let mut d = self.write();
+        info!("dir iodno CreateLink op inode id {:?}, oldname {:?},  newname {:?}" ,dir.ID(), oldname,newname);
 
         let newSymlink = match d.CreateOps.NewSymlink {
             None => return Err(Error::SysError(SysErr::EACCES)),
@@ -348,6 +352,7 @@ impl InodeOperations for Dir {
         if name.len() > NAME_MAX {
             return Err(Error::SysError(SysErr::ENAMETOOLONG));
         }
+        info!("dir iodno CreateHardLink op inode id {:?},target id {:?},  name {:?}" ,_dir.ID(), target.ID(), name);
 
         let mut d = self.write();
 

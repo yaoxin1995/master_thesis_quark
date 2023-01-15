@@ -730,7 +730,7 @@ impl File {
                     
                     {
                         let key = inode.ID();
-                        POLICY_CHEKCER.lock().addInoteToTrack(key, inodeType)
+                        POLICY_CHEKCER.write().addInoteToTrack(key, inodeType)
                     }
                     if isTTY {
                         return Ok(Self::NewTTYFile(&dirent, &fileFlags, fops));

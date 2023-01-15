@@ -755,20 +755,6 @@ impl HostInodeOp {
 
         let inodeType = self.InodeType();
         let inode_id = _f.Dirent.inode.ID();
-        // {
-        //     let PolicyChecher = POLICY_CHEKCER.lock();
-        //     let trackedInodeType = PolicyChecher.getInodeType(&inode_id);
-        //     if inodeType == InodeType::Pipe && trackedInodeType.is_some(){
-        //         let trackedInodeType = trackedInodeType.unwrap();
-                
-        //         if trackedInodeType == &TrackInodeType::Stdin || trackedInodeType == &TrackInodeType::Stdout {
-        //             buf = PolicyChecher.encryptContainerStdouterr(buf);
-        //             len = buf.Len();
-        //         }
-        //     }
-        // }
-
-        // info!("buf after {:?}, len: {:?}", buf, len);
         let mut iovs = buf.Iovs(len);
         
         /* 
@@ -778,16 +764,15 @@ impl HostInodeOp {
             // assert!(len == buf.Len());
             // info!("write data, inode_id {:?}", inode_id);
             let old_len = len;
-            let PolicyChecher = POLICY_CHEKCER.lock();
-            let trackedInodeType = PolicyChecher.getInodeType(&inode_id);
-            if inodeType == InodeType::Pipe && trackedInodeType.is_some(){
-                let trackedInodeType = trackedInodeType.unwrap();
-                
-                if trackedInodeType == &TrackInodeType::Stderro || trackedInodeType == &TrackInodeType::Stdout {
-                    buf = PolicyChecher.encryptContainerStdouterr(buf);
+            let check_readlocked = POLICY_CHEKCER.read();
+            if inodeType == InodeType::Pipe && check_readlocked.isInodeExist(&inode_id){
+                let trackedInodeType = check_readlocked.getInodeType(&inode_id);
+                if trackedInodeType == TrackInodeType::Stderro || trackedInodeType == TrackInodeType::Stdout {
+                    buf = check_readlocked.encryptContainerStdouterr(buf);
                     len = buf.Len();
                 }
             }
+            drop(check_readlocked);
 
             iovs = buf.Iovs(len);
             let mut ret = IOWrite(hostIops.HostFd(), &iovs)?;

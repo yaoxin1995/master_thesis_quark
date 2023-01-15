@@ -372,5 +372,7 @@ pub fn NewDev(task: &Task, msrc: &Arc<QMutex<MountSource>>) -> Inode {
         ..Default::default()
     };
 
+    info!("dev iodno inode id {:?}",inodeInternal.UniqueId);
+
     return Inode(Arc::new(QMutex::new(inodeInternal)));
 }

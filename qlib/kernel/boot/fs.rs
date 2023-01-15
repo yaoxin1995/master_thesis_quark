@@ -174,6 +174,8 @@ pub fn SetupContainerFS(
     //error!("SetupRootContainerFS 1.0 mounts[0].destination is {:?}", &mounts[0].destination);
 
     let rootInode = CreateRootMount(task, spec, conf, &mounts)?;
+    info!("mounts vec : {:?} conf {:?}", mounts, conf.RootDir);
+    
     let mns = MountNs::New(task, &rootInode);
 
     let root = mns.Root();
@@ -285,6 +287,7 @@ fn MakeMountPoint(task: &Task, mns: &MountNs, root: &Dirent, path: &str) -> Resu
     }
 
     let mut remainingTraversals = 0;
+    info!("MakeMountPoint {:?}", path);
     let res = mns.FindDirent(
         task,
         root,
@@ -335,7 +338,7 @@ fn MountSubmount(
         .Mount(task, &"none".to_string(), &mf, &opts.join(","))?;
     let submounts = SubTargets(&m.destination, mounts);
     if submounts.len() > 0 {
-        info!("adding submount overlay over {}", m.destination);
+        info!("adding submount overlay over {} submounts:{:?}", m.destination, submounts);
         inode = AddSubmountOverlay(task, &inode, &submounts)?;
     }
     MakeMountPoint(task, mns, root, &m.destination)?;

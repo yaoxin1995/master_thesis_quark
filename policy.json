@@ -1,9 +1,9 @@
 {
 
     "debug_mode_opt" :{
-        "enable_terminal": false,
-        "single_shot_command_line_mode": true,
-        "disable_container_logs_encryption":false
+        "enable_terminal": true,
+        "single_shot_command_line_mode": false,
+        "disable_container_logs_encryption":true
     },
 
     "single_shot_command_line_mode_configs": [

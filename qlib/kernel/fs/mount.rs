@@ -357,11 +357,14 @@ impl MountNs {
         if path.len() == 0 {
             return Err(Error::SysError(SysErr::ENOENT));
         }
+        info!("FindDirent, path {:?}, root {:?}", path, root.Name());
 
         let (mut current, mut first, mut remain) = match self.InitPath(root, &wd, path) {
             None => return Ok(root.clone()),
             Some(res) => res,
         };
+
+        info!("FindDirent, current {:?}, first {:?}, remain{:?}", current.Name(), first, remain);
 
         let mut remainStr;
 

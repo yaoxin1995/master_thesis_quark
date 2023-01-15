@@ -235,7 +235,10 @@ pub fn SingletonInit() {
 
         qlib::InitSingleton();
 
-        POLICY_CHEKCER.lock().init(SHARESPACE.k8s_policy.as_mut_ptr().as_ref());
+        {
+            POLICY_CHEKCER.write().init(SHARESPACE.k8s_policy.as_mut_ptr().as_ref());
+        }
+
     }
 }
 
@@ -555,7 +558,7 @@ pub extern "C" fn rust_main(
     /***************** can't run any qcall before this point ************************************/
 
     {
-        POLICY_CHEKCER.lock().printPolicy();
+        POLICY_CHEKCER.read().printPolicy();
     }
 
     if id == 0 {

@@ -12,6 +12,7 @@ use qlib::shield_policy::*;
 use crate::aes_gcm::{
     aead::{Aead, KeyInit, OsRng, generic_array::{GenericArray, typenum::U32}},
     Aes256Gcm, Nonce, // Or `Aes128Gcm`
+    Key,
 };
 
 use super::qlib::linux_def::*;
@@ -53,12 +54,15 @@ const NONCE_LENGTH: usize = 12;
 impl PolicyChecher {
     
     pub fn init(&mut self, policy: Option<&Policy>) -> () {
-    
+
         self.policy = policy.unwrap().clone();
         self.counter = 0;
-       // self.key = policy.unwrap().secret.file_encryption_key.as_bytes().to_vec();
+        // self.key = policy.unwrap().secret.file_encryption_key.as_bytes().to_vec();
         // todo: get key from policy file
-        self.key = Aes256Gcm::generate_key(&mut OsRng);
+        // self.key = Aes256Gcm::generate_key(&mut OsRng);
+        // sfor now, assume that the qkernel and secure client share this key
+        const KEY_SLICE: &[u8; 32] = b"a very simple secret key to use!";
+        self.key = Key::<Aes256Gcm>::from_slice(KEY_SLICE).clone();
         self.inode_track= BTreeMap::new();
     }
 
@@ -297,7 +301,7 @@ impl PolicyChecher {
     
         (io_frame.pay_load, io_frame.nonce)= self.encrypt(encoded_payload.as_ref()).unwrap();
     
-        let encoded_frame = postcard::to_allocvec(&io_frame).unwrap();
+        let encoded_frame = postcard::to_allocvec_cobs(&io_frame).unwrap();
     
         Ok(encoded_frame)
     }
@@ -365,6 +369,10 @@ impl PolicyChecher {
         }
 
         let rawData= src.buf.clone();
+
+        let str = String::from_utf8_lossy(&rawData).to_string();
+
+        info!("stdout is : {:?}", str);
 
         let encodedOutBoundDate = self.prepareEncodedIoFrame(rawData.as_slice()).unwrap();
         assert!(encodedOutBoundDate.len() != 0);

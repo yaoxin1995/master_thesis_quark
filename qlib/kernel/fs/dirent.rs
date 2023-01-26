@@ -40,6 +40,8 @@ use super::inode::*;
 use super::mount::*;
 use super::inotify::*;
 
+
+
 lazy_static! {
     pub static ref NEGATIVE_DIRENT: Dirent = Dirent::default();
     pub static ref NEGATIVE_DIRENT1: Dirent = Dirent::default();
@@ -1220,6 +1222,7 @@ impl Dirent {
                 None => (),
                 Some(p) => {
                     let name = self.Name();
+                    info!("notify parent");
                     p.Watches().Notify(&name,
                                                event,
                                                cookie,

@@ -40,6 +40,10 @@ extern crate cache_padded;
 #[macro_use]
 extern crate alloc;
 
+extern crate postcard;
+extern crate aes_gcm;
+extern crate getrandom;
+
 #[macro_use]
 extern crate scopeguard;
 
@@ -56,6 +60,13 @@ extern crate hashbrown;
 
 extern crate enum_dispatch;
 
+// extern crate aes_gcm_siv;
+// use aes_gcm_siv::{
+//     aead::{Aead, KeyInit, OsRng},
+//     Aes256GcmSiv, Nonce // Or `Aes128GcmSiv`
+// };
+
+
 #[macro_use]
 mod print;
 
@@ -69,7 +80,9 @@ mod interrupt;
 pub mod kernel_def;
 pub mod rdma_def;
 mod syscalls;
+pub mod shielding_layer;
 
+use self::shielding_layer::*;
 use self::kernel_def::*;
 use self::interrupt::virtualization_handler;
 use self::qlib::kernel::arch;
@@ -133,6 +146,9 @@ use self::qlib::kernel::VcpuFreqInit;
 use self::quring::*;
 //use self::heap::QAllocator;
 //use qlib::mem::bitmap_allocator::BitmapAllocatorWrapper;
+// use shielding_layer::*;
+
+
 pub const HEAP_START: usize = 0x70_2000_0000;
 pub const HEAP_SIZE: usize = 0x1000_0000;
 
@@ -213,6 +229,11 @@ pub fn SingletonInit() {
         task::InitSingleton();
 
         qlib::InitSingleton();
+
+        {
+            POLICY_CHEKCER.write().init(SHARESPACE.k8s_policy.as_mut_ptr().as_ref());
+        }
+
     }
 }
 
@@ -301,10 +322,8 @@ pub extern "C" fn syscall_handler(
         } else if llevel == LogLevel::Simple {
             tid = currTask.Thread().lock().id;
             pid = currTask.Thread().ThreadGroup().ID();
-            info!(
-                "({}/{})------get call id {:?} arg0:{:x}",
-                tid, pid, callId, arg0
-            );
+            info!("({}/{})------get call id {:?} arg0:{:x}, 1:{:x}, 2:{:x}, 3:{:x}, 4:{:x}, 5:{:x}, userstack:{:x}, return address:{:x}, fs:{:x}",
+            tid, pid, callId, arg0, arg1, arg2, arg3, arg4, arg5, currTask.GetPtRegs().rsp, currTask.GetPtRegs().rcx, GetFs());
         }
     }
     
@@ -492,12 +511,17 @@ pub extern "C" fn rust_main(
 
     /***************** can't run any qcall before this point ************************************/
 
+    {
+        POLICY_CHEKCER.read().printPolicy();
+    }
+
     if id == 0 {
         //error!("start main: {}", ::AllocatorPrint(10));
 
         //ALLOCATOR.Print();
         IOWait();
     };
+
 
     if id == 1 {
         error!("heap start is {:x}", heapStart);

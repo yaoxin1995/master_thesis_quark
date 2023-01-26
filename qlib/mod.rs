@@ -67,6 +67,8 @@ pub mod unix_socket;
 pub mod hiber_mgr;
 pub mod proxy;
 
+pub mod shield_policy;
+
 use self::mutex::*;
 use alloc::vec::Vec;
 use cache_padded::CachePadded;
@@ -93,6 +95,8 @@ use self::rdma_svc_cli::*;
 use self::ringbuf::*;
 use self::task_mgr::*;
 use self::hiber_mgr::*;
+
+use self::shield_policy::*;
 
 pub fn InitSingleton() {
     unsafe {
@@ -708,6 +712,8 @@ pub struct ShareSpace {
     pub hostEpollfd: AtomicI32,
 
     pub values: Vec<[AtomicU64; 2]>,
+
+    pub k8s_policy:  CachePadded<QRwLock<Policy>>,
 }
 
 impl ShareSpace {

@@ -112,7 +112,7 @@ pub fn fileOpOn(
 
     d = task
         .mountNS
-        .FindDirent(task, &root, rel, path, &mut remainTraversals, resolve)?;
+        .FindDirent(task, &root, rel, path, &mut remainTraversals, resolve)?; // fasle
 
     return func(&root, &d, remainTraversals);
 }
@@ -1460,6 +1460,8 @@ fn mkdirAt(task: &Task, dirFd: i32, addr: u64, mode: FileMode) -> Result<i64> {
             if !inode.StableAttr().IsDir() {
                 return Err(Error::SysError(SysErr::ENOTDIR));
             }
+
+            info!("root name {:?}, dname{:?}, name {:?}", root.Name(), d.Name(), name);
 
             let mut remainingTraversals = MAX_SYMLINK_TRAVERSALS;
             let res = task.mountNS.FindDirent(

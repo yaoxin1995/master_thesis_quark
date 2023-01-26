@@ -350,6 +350,8 @@ impl InodeOperations for HostDirOp {
     }
 
     fn Lookup(&self, task: &Task, parent: &Inode, name: &str) -> Result<Dirent> {
+
+        info!("open host file: {:?}", name);
         let (fd, writeable, fstat) = match TryOpenAt(self.HostFd(), name) {
             Err(Error::SysError(SysErr::ENOENT)) => {
                 let inode = match self.lock().overrides.get(name) {

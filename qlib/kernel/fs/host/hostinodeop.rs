@@ -52,6 +52,9 @@ use super::hostfileop::*;
 use super::util::*;
 use super::*;
 
+use crate::shielding_layer::*;
+use crate::qlib::shield_policy::*;
+
 pub struct MappableInternal {
     //addr mapping from file offset to physical address
     pub f2pmap: BTreeMap<u64, u64>,
@@ -743,14 +746,42 @@ impl HostInodeOp {
             size
         };
 
-        let mut buf = DataBuff::New(size);
-        let len = task.CopyDataInFromIovs(&mut buf.buf, srcs, true)?;
-        let iovs = buf.Iovs(len);
+
+        
+        let mut buf= DataBuff::New(size);
+        let mut len = task.CopyDataInFromIovs(&mut buf.buf, srcs, true)?;
+
+        // info!("buf before {:?}, len: {:?}, {:?}", buf, len, String::from_utf8_lossy(&buf.buf));
 
         let inodeType = self.InodeType();
-
+        let inode_id = _f.Dirent.inode.ID();
+        let mut iovs = buf.Iovs(len);
+        
+        /* 
+            Stdin/out/err is named piple, so it's inode type is InodeType::Pipe
+         */
         if inodeType != InodeType::RegularFile && inodeType != InodeType::CharacterDevice {
-            let ret = IOWrite(hostIops.HostFd(), &iovs)?;
+            // assert!(len == buf.Len());
+            // info!("write data, inode_id {:?}", inode_id);
+            let old_len = len;
+            let check_readlocked = POLICY_CHEKCER.read();
+            if inodeType == InodeType::Pipe && check_readlocked.isInodeExist(&inode_id){
+                let trackedInodeType = check_readlocked.getInodeType(&inode_id);
+                if trackedInodeType == TrackInodeType::Stderro || trackedInodeType == TrackInodeType::Stdout {
+                    buf = check_readlocked.encryptContainerStdouterr(buf);
+                    len = buf.Len();
+                }
+            }
+            drop(check_readlocked);
+
+            iovs = buf.Iovs(len);
+            let mut ret = IOWrite(hostIops.HostFd(), &iovs)?;
+
+            if ret == len as i64 {
+                ret = old_len as i64;
+            }
+
+            info!("ok {:?}, ret {:?}, len:{:?}, old_len {:?}", inode_id, ret, len, old_len);
             return Ok(ret as i64);
         } else {
             let offset = if inodeType == InodeType::CharacterDevice {

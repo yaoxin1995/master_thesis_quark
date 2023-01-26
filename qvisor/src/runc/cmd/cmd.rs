@@ -25,6 +25,8 @@ use super::super::runtime::loader::*;
 use super::super::runtime::vm::*;
 use super::command::*;
 
+use super::super::super::qlib::shield_policy::*;
+
 #[derive(Debug)]
 pub struct CmdCmd {
     pub cmd: Vec<String>,
@@ -92,5 +94,29 @@ impl Config {
     pub fn Print(&self) {
         let c = serde_json::to_string(self).unwrap();
         error!("config is {}", c);
+    }
+}
+
+
+
+impl Policy {
+    pub const POLICY_FILE: &'static str = "/etc/quark/policy.json";
+
+    // if the config file exist, load file and return true; otherwise return false
+    pub fn Load(&mut self) -> bool {
+
+        let contents = match fs::read_to_string(Self::POLICY_FILE) {
+            Ok(c) => c,
+            _ => return false,
+        };
+
+        let config = serde_json::from_str(&contents).expect("policy wrong format");
+        *self = config;
+        return true;
+    }
+
+    pub fn Print(&self) {
+        let c = serde_json::to_string(self).unwrap();
+        error!("policy is {}", c);
     }
 }

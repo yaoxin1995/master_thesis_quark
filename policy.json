@@ -1,0 +1,43 @@
+{
+
+    "debug_mode_opt" :{
+        "enable_terminal": true,
+        "single_shot_command_line_mode": false,
+        "disable_container_logs_encryption":true
+    },
+
+    "single_shot_command_line_mode_configs": [
+        {   
+            "role": "DataOwner",
+            "allowed_cmd": ["cat", "ls"],
+            "allowed_dir": ["/usr/data_owner/"]
+        },
+        {   
+            "role": "CodeOwner",
+            "allowed_cmd": ["cat", "ls"],
+            "allowed_dir": ["/usr/code_owner/"]
+        },
+        {   
+            "role": "Host",
+            "allowed_cmd": ["cat", "ls"],
+            "allowed_dir": ["/var"]
+        }
+    ],
+
+    "secret": {
+        "file_encryption_key": "123",
+        "env_variables" : [
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "TERM=xterm"
+        ],
+        "cmd_arg": [
+            "sh"
+        ],
+        "secret_file_path":[
+            "/etc/conf1.d",
+            "/etc/conf2.d"
+        ]
+    }
+
+
+}

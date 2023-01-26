@@ -51,6 +51,11 @@ extern crate simplelog;
 extern crate spin;
 extern crate tabwriter;
 
+extern crate aes_gcm;
+extern crate getrandom;
+
+pub mod shielding_layer;
+
 #[macro_use]
 pub mod asm;
 
@@ -88,12 +93,16 @@ use self::qlib::mem::list_allocator::*;
 use self::qlib::qmsg::*;
 use self::qlib::ShareSpace;
 use self::qlib::ShareSpaceRef;
+use self::qlib::shield_policy::*;
 use self::runc::cmd::command::*;
 use self::runc::shim::service::*;
 use self::vmspace::host_pma_keeper::*;
 use self::vmspace::hostfdnotifier::*;
 use self::vmspace::kernel_io_thread::*;
 use self::vmspace::hibernate::*;
+
+
+
 //use crate::qlib::mem::bitmap_allocator::BitmapAllocatorWrapper;
 
 use self::vmspace::uringMgr::*;
@@ -144,6 +153,12 @@ lazy_static! {
         config.Load();
         Mutex::new(config)
     };
+    pub static ref POLICY: Mutex<Policy> = {
+        let mut policy = Policy::default();
+        policy.Load();
+        policy.Print();
+        Mutex::new(policy)
+    };
     pub static ref URING_MGR: Arc<Mutex<UringMgr>> = {
         let uringQueueSize = if QUARK_CONFIG.lock().UringBuf {
             1024
@@ -186,8 +201,12 @@ fn main() {
     }
 
     let shimMode = QUARK_CONFIG.lock().ShimMode;
+    
     if shimMode == true && &cmd != "boot" {
         error!("*********shim mode***************");
+        {
+            let _policy = POLICY.lock();
+        }
         containerd_shim::run::<Service>("io.containerd.empty.v1", None)
     } else {
         let mut args = match Parse() {

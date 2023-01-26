@@ -45,6 +45,9 @@ use super::status::*;
 use super::super::shim::container_io::*;
 use super::super::runtime::fs::FsImageMounter;
 
+use super::super::super::qlib::shield_policy::*;
+
+
 // metadataFilename is the name of the metadata file relative to the
 // container root directory that holds sandbox metadata.
 const METADATA_FILENAME: &str = "meta.json";
@@ -1101,6 +1104,47 @@ impl Container {
         }
         return ret;
     }
+
+    pub fn req_autherity_check(&self, req_type: RequestType) -> bool {
+
+        match self.Sandbox.as_ref().unwrap().SandboxConnect() {
+            Ok(client) => {
+                let ucall_req;
+                match req_type {
+                    RequestType::SingleShotCmdMode(ref arg) => {
+                        ucall_req = UCallReq::IsOneShotCmdAllowed(arg.clone());
+                    }
+                    RequestType::Terminal => {
+                        ucall_req = UCallReq::IsTerminalAllowed;
+                    }
+                }
+            
+                let resp = client.Call(&ucall_req).expect(&format!("req_autherity_check return error, req_type {:?}",  req_type));
+
+                let res = match resp {
+                    UCallResp::IsOneShotCmdAllowedResp(r) => r,
+                    UCallResp::IsTerminalAllowedResp(r)=> r,
+                    _ => {
+                        error!("req_autherity_check not support resp....");
+                        false
+                    },
+                };
+
+                info!("req_autherity_check return {:?} for req {:?}", res ,req_type);
+                return res;
+
+            }
+            //the container has exited
+            Err(Error::SysError(SysErr::ECONNREFUSED)) => {
+                info!("req_autherity_check SandboxConnect: connect fail....");
+            }
+            Err(e) => {
+                info!("req_autherity_check SandboxConnect: connect fail, error {:?}" ,e);
+            }
+            
+        }
+        false
+    }
 }
 
 pub fn runInCgroup(cg: &Option<Cgroup>, mut f: impl FnMut() -> Result<()>) -> Result<()> {
@@ -1133,6 +1177,7 @@ pub struct ExecArgs {
     #[serde(default, skip_serializing, skip_deserializing)]
     pub Fds: Vec<i32>,
 }
+
 
 impl FileDescriptors for ExecArgs {
     fn GetFds(&self) -> Option<&[i32]> {

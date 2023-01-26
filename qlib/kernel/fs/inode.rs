@@ -73,6 +73,7 @@ use crate::qlib::kernel::fs::ramfs::dir::Dir;
 use crate::qlib::kernel::fs::procfs::symlink_proc::SymlinkNode;
 use crate::qlib::kernel::fs::procfs::seqfile::SeqFile;
 use crate::qlib::kernel::fs::tmpfs::tmpfs_file::TmpfsFileInodeOp;
+use crate::shielding_layer::*;
 
 pub fn ContextCanAccessFile(task: &Task, inode: &Inode, reqPerms: &PermMask) -> Result<bool> {
     let creds = task.creds.clone();
@@ -391,6 +392,28 @@ impl Deref for Inode {
     }
 }
 
+impl Drop for Inode {
+    fn drop(&mut self) {
+        if Arc::strong_count(&self.0) == 1 {
+
+            let inodeId = self.0.lock().UniqueId;
+            info!("Drop inode id {:?}, strong count: {:?}, weak count: {:?}", inodeId, Arc::strong_count(&self.0), Arc::weak_count(&self.0));
+            {
+                let mut checker_locked = POLICY_CHEKCER.try_write();
+                while !checker_locked.is_some() {
+                    checker_locked = POLICY_CHEKCER.try_write();
+                }
+
+                let mut checker = checker_locked.unwrap();
+                if checker.isInodeExist(&inodeId) {
+                    checker.rmInoteToTrack(inodeId);
+                }
+            }
+        }
+    }
+}
+
+
 impl Inode {
     pub fn Downgrade(&self) -> InodeWeak {
         return InodeWeak(Arc::downgrade(&self.0));
@@ -579,13 +602,15 @@ impl Inode {
     pub fn Lookup(&self, task: &Task, name: &str) -> Result<Dirent> {
         let isOverlay = self.lock().Overlay.is_some();
         if isOverlay {
+            info!("Lookup isoverlay: {:?}", name);
             let overlay = self.lock().Overlay.as_ref().unwrap().clone();
             let (dirent, _) = overlayLookup(task, &overlay, self, name)?;
             return Ok(dirent);
         }
-
+        
         let iops = self.lock().InodeOp.clone();
         let res = iops.Lookup(task, self, name);
+        info!("Lookup overlay: 1111 {:?}", name);
         return res;
     }
 

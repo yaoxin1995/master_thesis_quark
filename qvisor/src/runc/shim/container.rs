@@ -40,6 +40,10 @@ use super::super::container::container::*;
 use super::container_io::*;
 use super::process::*;
 
+use super::super::super::qlib::shield_policy::*;
+use super::super::super::qlib::control_msg::*;
+
+
 #[derive(Clone, Default)]
 pub struct ContainerFactory {}
 
@@ -198,6 +202,37 @@ impl CommonContainer {
         let exec_id = req.exec_id.to_string();
         let mut exec_process =
             ExecProcess::try_from(req).map_err(|e| Error::Common(format!("{:?}", e)))?;
+
+        let policy_req;
+        if exec_process.terminal() == true {
+            policy_req = RequestType::Terminal;
+        }
+        else {
+            //Todo: encrypt the env, args, cwd on client side and decrypt them in qkernel
+            let mut args = Vec::new();
+            for arg in &exec_process.spec.args {
+                args.push(arg.clone());
+            }
+    
+            let mut envv = Vec::new();
+            for env in &exec_process.spec.env {
+                envv.push(env.clone())
+            }
+
+            let cmd_args = OneShotCmdArgs {
+                args: args,
+                env: envv,
+                cwd: exec_process.spec.cwd.clone(),
+            };
+
+            policy_req = RequestType::SingleShotCmdMode(cmd_args);
+        }
+        let is_req_allowed = self.container.req_autherity_check(policy_req);
+
+        if !is_req_allowed {
+            info!("req exec is rejected, terminal mode {:?}", exec_process.terminal());
+            return Err(Error::NotSupport);
+        }
 
         let stdio = exec_process.common.stdio.CreateIO()?;
         exec_process.common.containerIO = stdio;
@@ -496,4 +531,6 @@ impl CommonContainer {
     pub fn pid(&self) -> i32 {
         self.init.pid()
     }
+
+
 }

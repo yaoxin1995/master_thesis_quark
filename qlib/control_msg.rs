@@ -21,6 +21,7 @@ use super::auth::id::*;
 use super::loader::*;
 use super::singleton::*;
 
+
 type Cid = String;
 
 pub static MSG_ID: Singleton<AtomicU64> = Singleton::<AtomicU64>::New();
@@ -103,6 +104,13 @@ pub struct StartArgs {
     pub process: Process,
 }
 
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct OneShotCmdArgs {
+    pub args: Vec<String>,
+    pub env: Vec<String>,
+    pub cwd: String,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Payload {
     RootContainerStart(RootProcessStart),
@@ -117,6 +125,8 @@ pub enum Payload {
     CreateSubContainer(CreateArgs),
     StartSubContainer(StartArgs),
     WaitAll,
+    IsTerminalAllowed,
+    IsOneShotCmdAllowed(OneShotCmdArgs),
 }
 
 impl Default for Payload {
@@ -150,6 +160,9 @@ pub enum UCallResp {
     CreateSubContainerResp,
     StartSubContainerResp,
     WaitAllResp(WaitAllResp),
+    IsTerminalAllowedResp(bool),
+    IsOneShotCmdAllowedResp(bool),
+    ErrorResp,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

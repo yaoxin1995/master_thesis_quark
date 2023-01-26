@@ -21,9 +21,9 @@ use crate::qlib::kernel::Kernel::HostSpace;
 use crate::qlib::kernel::kernel::kernel::GetKernel;
 //use crate::qlib::mem::list_allocator::*;
 use crate::qlib::linux::signal::*;
-use super::super::super::super::kernel_def::{
-    StartExecProcess, StartRootContainer, StartSubContainerProcess,
-};
+// use super::super::super::super::kernel_def::{
+//     StartExecProcess, StartRootContainer, StartSubContainerProcess, POLICY_CHEKCER
+// };
 use super::super::super::common::*;
 use super::super::super::control_msg::*;
 use super::super::super::vcpu_mgr::*;
@@ -36,6 +36,14 @@ use super::super::IOURING;
 use super::super::LOADER;
 use super::super::SHARESPACE;
 use super::process::*;
+
+use super::super::super::super::kernel_def::*;
+
+use super::super::super::super::shielding_layer::POLICY_CHEKCER;
+
+
+
+
 //use crate::qlib::kernel::vcpu::CPU_LOCAL;
 
 pub fn ControllerProcessHandler() -> Result<()> {
@@ -146,7 +154,8 @@ pub fn SignalHandler(_: *const u8) {
 
 pub fn ControlMsgHandler(fd: *const u8) {
     let fd = fd as i32;
-
+    
+    info!("policy in qkernel: {:?}", SHARESPACE.k8s_policy.read());
     let task = Task::Current();
     let mut msg = ControlMsg::default();
     Kernel::HostSpace::ReadControlMsg(fd, &mut msg as * mut _ as u64);
@@ -226,6 +235,24 @@ pub fn ControlMsgHandler(fd: *const u8) {
         Payload::WaitAll => {
             SetWaitContainerfd(fd);
         }
+
+        // policy checker specified
+        Payload::IsTerminalAllowed => {
+            let is_allowd;
+            {
+                is_allowd = POLICY_CHEKCER.read().terminalEndpointerCheck();
+            }
+            WriteControlMsgResp(fd, &UCallResp::IsTerminalAllowedResp(is_allowd), true);
+        }
+
+        Payload::IsOneShotCmdAllowed(oneShotCmd) => {
+            let is_allowd;
+            {
+                is_allowd = POLICY_CHEKCER.read().singleShotCommandLineModeCheck(oneShotCmd);
+            }
+            WriteControlMsgResp(fd, &&UCallResp::IsOneShotCmdAllowedResp(is_allowd), true);
+        }
+
     }
 
     // free curent task in the waitfn context

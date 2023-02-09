@@ -55,6 +55,7 @@ use super::*;
 use crate::shielding_layer::*;
 use crate::qlib::shield_policy::*;
 
+
 pub struct MappableInternal {
     //addr mapping from file offset to physical address
     pub f2pmap: BTreeMap<u64, u64>,
@@ -756,6 +757,11 @@ impl HostInodeOp {
         let inodeType = self.InodeType();
         let inode_id = _f.Dirent.inode.ID();
         let mut iovs = buf.Iovs(len);
+
+
+        // info!("buf before {:?}, len: {:?}, {:?}", buf, len, String::from_utf8_lossy(&buf.buf));
+
+        let check_readlocked = POLICY_CHEKCER.read();
         
         /* 
             Stdin/out/err is named piple, so it's inode type is InodeType::Pipe
@@ -764,10 +770,9 @@ impl HostInodeOp {
             // assert!(len == buf.Len());
             // info!("write data, inode_id {:?}", inode_id);
             let old_len = len;
-            let check_readlocked = POLICY_CHEKCER.read();
             if inodeType == InodeType::Pipe && check_readlocked.isInodeExist(&inode_id){
                 let trackedInodeType = check_readlocked.getInodeType(&inode_id);
-                if trackedInodeType == TrackInodeType::Stderro || trackedInodeType == TrackInodeType::Stdout {
+                if trackedInodeType == TrackInodeType::Stderro || trackedInodeType == TrackInodeType::Stdout{
                     buf = check_readlocked.encryptContainerStdouterr(buf);
                     len = buf.Len();
                 }
@@ -784,6 +789,8 @@ impl HostInodeOp {
             info!("ok {:?}, ret {:?}, len:{:?}, old_len {:?}", inode_id, ret, len, old_len);
             return Ok(ret as i64);
         } else {
+
+            info!("inode id {:?}", inode_id);
             let offset = if inodeType == InodeType::CharacterDevice {
                 -1
             } else {

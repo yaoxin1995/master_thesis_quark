@@ -513,10 +513,11 @@ impl CommonContainer {
                     &process.spec,
                     &fds,
                 )?;
+                let sandboxId = self.container.Sandbox.as_ref().unwrap().ID.clone();
                 process.common.pid = pid;
                 process
                     .common
-                    .CopyIO(&*self.id, pid)
+                    .CopyIO(&*self.id, pid, sandboxId)
                     .map_err(|e| Error::Common(format!("{:?}", e)))?;
                 return Ok(pid);
             }

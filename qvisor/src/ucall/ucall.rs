@@ -41,6 +41,7 @@ pub enum UCallReq {
     WaitAll,
     IsTerminalAllowed,
     IsOneShotCmdAllowed(OneShotCmdArgs),
+    ProcessIncommingTerminalIoFrame(TermianlIoArgs),
 }
 
 impl FileDescriptors for UCallReq {
@@ -54,7 +55,8 @@ impl FileDescriptors for UCallReq {
                 } else {
                     return Some(&args.fds);
                 }
-            }
+            },
+            UCallReq::ProcessIncommingTerminalIoFrame(args) => return Some(&args.fds),
             _ => return None,
         }
     }

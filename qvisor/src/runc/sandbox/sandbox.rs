@@ -181,6 +181,34 @@ pub fn SignalExecProcess(
     }
 }
 
+pub fn SignalQkernelIncommingTerminalIO(cid: &str, pid: i32, fifo_fd: i32, tty_fd: i32, sandboxId: String) -> Result<i64> {
+    
+    info!("SignalQkernelIncommingTerminalIO sandbox {}, pid {}", cid, pid);
+
+    let addr = ControlSocketAddr(&sandboxId);
+    info!("SandboxConnect connect address is {}", &addr);
+    let client = UCallClient::Init(&addr).unwrap();
+
+    let fds = vec![fifo_fd, tty_fd];
+    let ucall_req = UCallReq::ProcessIncommingTerminalIoFrame(TermianlIoArgs {
+        cid: cid.to_string(),
+        pid: pid,
+        fds: fds,
+    });
+        
+    let resp = client.Call(&ucall_req).expect(&format!("SignalQkernelIncommingTerminalIO return error"));
+
+    match resp {
+        UCallResp::ProcessIncommingTerminalIoFrameResp(arg) => {
+            info!("SignalQkernelIncommingTerminalIO succed");
+            return Ok(arg);
+        },
+        resp => {
+            panic!("ProcessIncommingTerminalIoFrameResp get unknow resp {:?}", resp);
+        }
+    }
+}
+
 // Sandbox wraps a sandbox process.
 //
 // Note: Sandbox must be immutable because a copy of it is saved for each

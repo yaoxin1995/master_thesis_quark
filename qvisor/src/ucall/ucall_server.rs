@@ -19,7 +19,6 @@ use super::super::qlib::control_msg::*;
 use super::super::qlib::linux_def::*;
 use super::super::qlib::loader;
 use super::super::runc::container::container::*;
-use super::super::vmspace::*;
 use super::super::URING_MGR;
 use super::ucall::*;
 use super::usocket::*;
@@ -142,7 +141,6 @@ pub fn CreateSubContainerHandler(args: &mut CreateArgs, fds: &[i32]) -> Result<C
 
     for i in 0..fds.len() {
         let osfd = args.fds[i];
-        VMSpace::UnblockFd(osfd);
 
         let hostfd = GlobalIOMgr().AddFile(osfd);
         args.fds[i] = hostfd;
@@ -167,6 +165,24 @@ pub fn IsTerminalAllowedHandler () -> Result<ControlMsg> {
     return Ok(msg);
 }
 
+pub fn ProcessTerminalStdinIo(args: &mut TermianlIoArgs, fds: &[i32]) -> Result<ControlMsg> {
+    //set fds back to args,
+    assert!(fds.len() == 2);
+    args.fds[0] = fds[0];
+    args.fds[1] = fds[1];
+
+    info!("ProcessTerminalStdinIo cid {}, pid {}", args.cid, args.pid);
+    for i in 0..fds.len() {
+        let osfd = args.fds[i];
+
+        let hostfd = GlobalIOMgr().AddFile(osfd);
+        args.fds[i] = hostfd;
+    }
+
+    let msg = ControlMsg::New(Payload::ProcessIncommingTerminalIoFrame(args.clone()));
+    return Ok(msg);
+}
+
 pub fn ProcessReqHandler(req: &mut UCallReq, fds: &[i32]) -> Result<ControlMsg> {
     let msg = match req {
         UCallReq::RootContainerStart(start) => RootContainerStartHandler(start)?,
@@ -183,6 +199,7 @@ pub fn ProcessReqHandler(req: &mut UCallReq, fds: &[i32]) -> Result<ControlMsg> 
         UCallReq::WaitAll => WaitAll()?,
         UCallReq::IsOneShotCmdAllowed(args) => IsOneShotCmdAllowedHandler(args)?,
         UCallReq::IsTerminalAllowed => IsTerminalAllowedHandler()?,
+        UCallReq::ProcessIncommingTerminalIoFrame(args) => ProcessTerminalStdinIo(args, fds)?
     };
 
     return Ok(msg);

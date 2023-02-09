@@ -64,6 +64,7 @@ use super::loader::*;
 use super::signal_handle::*;
 use super::util::*;
 use super::vm::*;
+use std::env::current_dir;
 
 pub const QUARK_SANDBOX_ROOT_PATH: &str = "/var/lib/quark/";
 
@@ -757,7 +758,7 @@ pub fn MountFrom(m: &Mount, rootfs: &str, flags: MsFlags, data: &str, label: &st
         PathBuf::from(&m.source)
     };
 
-    //error!("MountFrom ... src {} target {} rootfs {} dst {}", src.as_path().to_str().unwrap(), &dest, rootfs, &m.destination);
+    error!("MountFrom ... src {} target {} rootfs {} dst {}, current dir {:?}", src.as_path().to_str().unwrap(), &dest, rootfs, &m.destination, current_dir().unwrap().into_os_string().into_string());
     let ret = Util::Mount(
         src.as_path().to_str().unwrap(),
         &dest,

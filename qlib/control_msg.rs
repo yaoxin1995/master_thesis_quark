@@ -110,6 +110,24 @@ pub struct OneShotCmdArgs {
     pub env: Vec<String>,
     pub cwd: String,
 }
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct TermianlIoArgs {
+    // the container ID that the exec process belongs to
+    pub cid: String,
+    // exec process id
+    pub pid: i32,
+    // fd to be sent to the new container, first: fifo_fd, seconde: tty_master
+    pub fds: Vec<i32>,
+}
+
+
+impl TermianlIoArgs {
+    fn SetFds(&mut self, fds: &[i32]) {
+        for fd in fds {
+            self.fds.push(*fd)
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Payload {
@@ -127,6 +145,7 @@ pub enum Payload {
     WaitAll,
     IsTerminalAllowed,
     IsOneShotCmdAllowed(OneShotCmdArgs),
+    ProcessIncommingTerminalIoFrame(TermianlIoArgs),
 }
 
 impl Default for Payload {
@@ -162,6 +181,7 @@ pub enum UCallResp {
     WaitAllResp(WaitAllResp),
     IsTerminalAllowedResp(bool),
     IsOneShotCmdAllowedResp(bool),
+    ProcessIncommingTerminalIoFrameResp(i64),
     ErrorResp,
 }
 

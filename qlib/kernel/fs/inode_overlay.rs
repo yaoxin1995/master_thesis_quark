@@ -129,7 +129,7 @@ pub fn overlayLookup(
         }
     }
 
-    info!("overlayLookup reach 1{:?} lowerInode.is_some(): {:?}", name, lowerInode.is_some());
+    info!("overlayLookup reach 1{:?} name,upperInode.is_some() {:?} lowerInode.is_some(): {:?}", name,upperInode.is_some() ,lowerInode.is_some());
 
     if upperInode.is_none() && lowerInode.is_none() {
         return Err(Error::SysError(SysErr::ENOENT));

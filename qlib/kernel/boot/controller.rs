@@ -43,7 +43,7 @@ use crate::qlib::linux::signal::*;
 
 use super::super::super::super::kernel_def::*;
 
-use super::super::super::super::shielding_layer::POLICY_CHEKCER;
+use super::super::super::super::shielding_layer::*;
 
 
 
@@ -267,6 +267,17 @@ pub fn ControlMsgHandler(fd: *const u8) {
                 is_allowd = POLICY_CHEKCER.read().singleShotCommandLineModeCheck(oneShotCmd);
             }
             WriteControlMsgResp(fd, &&UCallResp::IsOneShotCmdAllowedResp(is_allowd), true);
+        }
+
+        Payload::ProcessIncommingTerminalIoFrame(args) => {
+            info!("Payload::ProcessIncommingTerminalIoFrame start, pid {}", args.pid);
+
+            let termianl_shield = TERMINAL_SHIELD.read();
+        
+            let res = termianl_shield.console_copy_from_fifo_to_tty(args.fds[0], args.fds[1], &args.cid, args.pid, true, task).unwrap();
+            info!("console_copy_from_fifo_to_tty res {}", res);
+            
+            WriteControlMsgResp(fd, &&UCallResp::ProcessIncommingTerminalIoFrameResp(res), true);
         }
 
     }

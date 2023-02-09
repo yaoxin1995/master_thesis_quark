@@ -322,7 +322,7 @@ impl InitProcess {
             !self.no_pivot_root,
         )
         .map_err(|e| Error::Other(format!("{:?}", e)))?;
-        let sandboxId = container.Sandbox.as_ref().unwrap().ID.clone();
+        let sandboxId: String = container.Sandbox.as_ref().unwrap().ID.clone();
         self.common.CopyIO(&*container.ID, 0, sandboxId)?;
         return Ok(container);
     }

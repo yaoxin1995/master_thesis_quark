@@ -35,8 +35,10 @@ use super::super::file::*;
 use super::super::host::hostinodeop::*;
 use super::super::inode::*;
 use super::hostfileop::*;
-
+use super::super::super::super::super::shielding_layer::*;
 use super::ioctl::*;
+use alloc::string::String;
+use alloc::string::ToString;
 
 pub const NUM_CONTROL_CHARACTERS: usize = 19;
 pub const DISABLED_CHAR: u8 = 0;
@@ -534,6 +536,7 @@ impl FileOperations for TTYFileOps {
         offset: i64,
         serializer: &mut DentrySerializer,
     ) -> Result<i64> {
+        info!("tty ReadDir");
         let fops = self.lock().fileOps.clone();
         let res = fops.ReadDir(task, f, offset, serializer);
         return res;
@@ -548,18 +551,31 @@ impl FileOperations for TTYFileOps {
         blocking: bool,
     ) -> Result<i64> {
         self.lock().checkChange(task, Signal(Signal::SIGTTIN))?;
+        info!("tty ReadAt offest {:?}", offset);
+
+        let size = IoVec::NumBytes(dsts);
+        let src_buf = DataBuff::New(size);
+        let mut new_dsts = src_buf.Iovs(size);
+        let res;
 
         if SHARESPACE.config.read().UringIO && ENABLE_RINGBUF {
             let fd = self.lock().fd;
             let queue = self.lock().queue.clone();
             let ringBuf = self.lock().buf.clone();
 
-            let ret = QUring::RingFileRead(task, fd, queue, ringBuf, dsts, false, false)?;
-            return Ok(ret);
+            res = QUring::RingFileRead(task, fd, queue, ringBuf, &mut new_dsts, false, false);
+
+        } else {
+            let fops = self.lock().fileOps.clone();
+            res = fops.ReadAt(task, f, &mut new_dsts, offset, blocking);
         }
 
-        let fops = self.lock().fileOps.clone();
-        let res = fops.ReadAt(task, f, dsts, offset, blocking);
+        let rawData= src_buf.buf.clone();
+        let str = String::from_utf8_lossy(&rawData).to_string();
+        info!("tty ReadAt, {:?}", str);
+
+        IoVec::CopySlice(&src_buf.buf, dsts);
+
         return res;
     }
 
@@ -583,17 +599,47 @@ impl FileOperations for TTYFileOps {
             return Ok(0);
         }
 
+        info!("tty WriteAt");
+
+        let check_readlocked = POLICY_CHEKCER.read();
+        
+        // TODO: check if we need to encrypt the terminal
+        let (new_length, iov) = check_readlocked.termianlIoEncryption(srcs, task)?;
+
+        let iov_unrapt = iov.unwrap();
+        let new_src =  &iov_unrapt[..];
+
+
+
+        // let io_vec = writeBuf.unwrap().IoVec(len);
+        
+        let res;
+
         if SHARESPACE.config.read().UringIO && ENABLE_RINGBUF {
             let fd = self.lock().fd;
             let queue = self.lock().queue.clone();
             let ringBuf = self.lock().buf.clone();
-
-            return QUring::RingFileWrite(task, fd, queue, ringBuf, srcs, Arc::new(self.clone()));
+            res =  QUring::RingFileWrite(
+                task,
+                fd,
+                queue,
+                ringBuf,
+                new_src,
+                Arc::new(self.clone()),
+            );  
+        } else {
+            let fops = self.lock().fileOps.clone();
+            res = fops.WriteAt(task, f, new_src, offset, blocking);
         }
 
-        let fops = self.lock().fileOps.clone();
-        let res = fops.WriteAt(task, f, srcs, offset, blocking);
-        return res;
+        if let Ok(count) = res {
+
+            assert!(count == new_length as i64);
+            return Ok(size as i64);
+        } else {
+            error!("tty output failed!!!!!!!!!!!!!!!!!!!, error: {:?}", res);
+            return res;
+        } 
     }
 
     fn Append(&self, task: &Task, f: &File, srcs: &[IoVec]) -> Result<(i64, i64)> {
@@ -603,6 +649,8 @@ impl FileOperations for TTYFileOps {
                 t.checkChange(task, Signal(Signal::SIGTTOU))?;
             }
         }
+
+        info!("tty Append");
 
         let fops = self.lock().fileOps.clone();
         let res = fops.Append(task, f, srcs);

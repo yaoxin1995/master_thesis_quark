@@ -517,6 +517,7 @@ impl CommonContainer {
                     &process.spec,
                     &fds,
                 )?;
+                let sandboxId = self.container.Sandbox.as_ref().unwrap().ID.clone();
                 process.common.pid = pid;
                 let sandboxId = self.container.Sandbox.as_ref().unwrap().ID.clone();
                 process

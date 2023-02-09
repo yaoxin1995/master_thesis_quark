@@ -17,9 +17,19 @@ use crate::aes_gcm::{
 
 use alloc::collections::btree_map::BTreeMap;
 use super::qlib::linux_def::*;
+use super::qlib::kernel::task::*;
+use super::qlib::kernel::{SHARESPACE, IOURING, fd::*, boot::controller::HandleSignal};
+
 
 lazy_static! {
     pub static ref POLICY_CHEKCER :  RwLock<PolicyChecher> = RwLock::new(PolicyChecher::default());
+    pub static ref TERMINAL_SHIELD:  RwLock<TerminalShield> = RwLock::new(TerminalShield::default());
+}
+
+
+#[derive(Debug, Default)]
+pub struct TerminalShield {
+    key: GenericArray<u8, U32>,
 }
 
 #[derive(Debug, Default)]
@@ -356,6 +366,7 @@ impl PolicyChecher {
         let res =  self.inode_track.get(key).unwrap().clone();
         res
     }
+    
     pub fn encryptContainerStdouterr (&self, src: DataBuff) -> DataBuff {
 
         if self.policy.debug_mode_opt.disable_container_logs_encryption {
@@ -375,10 +386,204 @@ impl PolicyChecher {
 
     }
 
+    pub fn termianlIoEncryption(&self, src: &[IoVec], task: &Task) -> Result<(usize, Option<Vec::<IoVec>>)>{
+        let size = IoVec::NumBytes(src);
+        if size == 0 {
+            return Ok((0, None));
+        }
+        let mut new_len : usize = 0;
+
+        let mut vec = Vec::<IoVec>::new();
+
+        for iov in src {
+            let mut buf= DataBuff::New(iov.len);
+            let _ = task.CopyDataInFromIovs(&mut buf.buf, &[iov.clone()], true)?;
+            let rawData= buf.buf.clone();
+            let encodedOutBoundDate = self.prepareEncodedIoFrame(rawData.as_slice()).unwrap();
+            let mut encrypted_iov = DataBuff::New(encodedOutBoundDate.len());
+            encrypted_iov.buf = encodedOutBoundDate.clone();
+            vec.push(encrypted_iov.IoVec(encodedOutBoundDate.len()));
+            new_len = new_len + encodedOutBoundDate.len();
+        }
+
+        return Ok((new_len, Some(vec)));
+    
+    }
+
 
 
     
 
 }
     
+
+
+pub trait TermianlIoShiled{
+    fn console_copy_from_fifo_to_tty(&self, fifo_fd: i32, tty_fd: i32, cid: &str, pid: i32, filter_sig: bool, task: &Task) -> Result<i64>;
+    fn filter_signal_and_write(&self, task: &Task, to_fd: i32, s: &[u8], cid: &str, pid: i32) -> Result<()>;
+    fn get_signal(&self, c: u8) -> Option<i32>;
+    fn write_buf(&self, task: &Task, to: i32, buf: &[u8]) -> Result<i64>;
+    fn read_from_fifo(&self, fd:i32, task: &Task, buf: &mut DataBuff, count: usize) -> Result<i64>;
+    fn write_to_tty (&self, host_fd: i32, task: &Task, src_buf: &mut DataBuff, count: usize) -> Result<i64>;
+}
+
+
+pub const ENABLE_RINGBUF: bool = true;
+
+impl TermianlIoShiled for TerminalShield {
+
+    fn console_copy_from_fifo_to_tty(&self, fifo_fd: i32, tty_fd: i32, cid: &str, pid: i32, _filter_sig: bool, task: &Task) -> Result<i64> {
+
+        let mut src_buf = DataBuff::New(512);
+        let buf_len = src_buf.Len();
+
+        let ret = self.read_from_fifo(fifo_fd, task, &mut src_buf, buf_len);
+
+        if ret.is_err() {
+            return ret;
+        }
+        
+        let cnt = ret.unwrap();
+        if cnt == 0 {
+            return Ok(cnt);
+        }
+        assert!(cnt > 0);
+
+        let buf_slice = src_buf.buf.as_slice();
+
+        self.filter_signal_and_write(task, tty_fd, &buf_slice[..cnt as usize], cid, pid)?;
+
+        Ok(cnt)
+    }
+
+    fn filter_signal_and_write(&self, task: &Task, to_fd: i32, s: &[u8], cid: &str, pid: i32) -> Result<()> {
+        let len = s.len();
+        let mut offset = 0;
+        for i in 0..len {
+            if let Some(sig) = self.get_signal(s[i]) {
+                let sigArgs = SignalArgs {
+                    CID: cid.to_string(),
+                    Signo: sig,
+                    PID: pid,
+                    Mode: SignalDeliveryMode::DeliverToForegroundProcessGroup,
+                };
+    
+                self.write_buf(task, to_fd, &s[offset..i])?;
+                HandleSignal(&sigArgs);
+                offset = i + 1;
+            }
+        }
+        if offset < len {
+            self.write_buf(task, to_fd, &s[offset..len])?;
+        }
+        return Ok(());
+    }
+    
+
+    
+    fn write_buf(&self, task: &Task, to: i32, buf: &[u8]) -> Result<i64> {
+        let len = buf.len() as usize;
+        let mut offset = 0;
+        while offset < len {
+            let count = len - offset;
+            let but_to_write = &buf[offset..count];
+
+            let mut src_buf = DataBuff::New(count);
+            src_buf.buf = but_to_write.to_vec().clone();
+            let src_buf_len = src_buf.Len();
+
+            let writeCnt = self.write_to_tty(to, task, &mut src_buf, src_buf_len);
+            if writeCnt.is_err() {
+                return writeCnt;
+            }
+
+    
+            offset += writeCnt.unwrap() as usize;
+        }
+        return Ok(offset as i64);
+    }
+
+    fn get_signal(&self, c: u8) -> Option<i32> {
+        // signal characters for x86
+        const INTR_CHAR: u8 = 3;
+        const QUIT_CHAR: u8 = 28;
+        const SUSP_CHAR: u8 = 26;
+        return match c {
+            INTR_CHAR => Some(Signal::SIGINT),
+            QUIT_CHAR => Some(Signal::SIGQUIT),
+            SUSP_CHAR => Some(Signal::SIGTSTP),
+            _ => None,
+        };
+    }
+
+
+    fn read_from_fifo(&self, host_fd: i32, task: &Task, buf: &mut DataBuff, _count: usize) -> Result<i64> {
+        if SHARESPACE.config.read().UringIO {
+
+                let ret = IOURING.Read(
+                    task,
+                    host_fd,
+                    buf.Ptr(),
+                    buf.Len() as u32,
+                    0 as i64,
+                );
+
+                if ret < 0 {
+                    if ret as i32 != -SysErr::EINVAL {
+                        return Err(Error::SysError(-ret as i32));
+                    }
+                } else if ret >= 0 {
+                    return Ok(ret as i64);
+                }
+
+                // if ret == SysErr::EINVAL, the file might be tmpfs file, io_uring can't handle this
+                // fallback to normal case
+                // todo: handle tmp file elegant
+        }
+
+        let ret = IOReadAt(host_fd, &buf.Iovs(buf.Len()), 0 as u64)?;
+
+        return Ok(ret as i64);
+
+    }
+
+
+    
+    fn write_to_tty (&self, host_fd: i32, task: &Task, src_buf: &mut DataBuff, _count: usize) -> Result<i64> {
+
+
+        let ret;
+        let offset:i64 = -1;
+        if SHARESPACE.config.read().UringIO {
+
+            /*
+            IORING_OP_WRITE:
+            Issue the equivalent of a pread(2) or pwrite(2) system call. fd is the file descriptor to be operated on, addr contains the buffer in question, len contains the length of the 
+            IO operation, and offs contains the read or write offset. If fd does not refer to a seekable file, off must be set to zero or -1. If offs is set to -1 , the offset will use
+            (and advance) the file position, like the read(2) and write(2) system calls. These are non-vectored versions of the IORING_OP_READV and IORING_OP_WRITEV opcodes. See also read(2) 
+            and write(2) for the general description of the related system call. Available since 5.6.
+             */
+            ret = IOURING.Write(task, host_fd, src_buf.Ptr(), src_buf.Len() as u32, offset);
+
+            if ret < 0 {
+                if ret as i32 != -SysErr::EINVAL {
+                    return Err(Error::SysError(-ret as i32));
+                }
+            } else if ret >= 0 {
+                return Ok(ret as i64);
+            }
+        }
+
+        match IOWriteAt(host_fd, &src_buf.Iovs(src_buf.Len()), offset as u64) {
+            Err(e) => return Err(e),
+            Ok(ret) => {
+                return Ok(ret);
+            }
+        }
+
+    }
+
+
+}
+
     

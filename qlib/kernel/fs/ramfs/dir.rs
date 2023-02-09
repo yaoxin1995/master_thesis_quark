@@ -241,6 +241,7 @@ impl InodeOperations for Dir {
         if name.len() > NAME_MAX {
             return Err(Error::SysError(SysErr::ENAMETOOLONG));
         }
+        info!("Dir Inode Lookup name {:?}", name);
 
         let d = self.read();
 
@@ -284,7 +285,11 @@ impl InodeOperations for Dir {
         let mut d = self.write();
 
         let newDir = match d.CreateOps.NewDir {
-            None => return Err(Error::SysError(SysErr::EACCES)),
+            None => {
+                info!("Error::SysError(SysErr::EACCES");
+                return Err(Error::SysError(SysErr::EACCES));
+            }
+
             Some(newDir) => newDir,
         };
 

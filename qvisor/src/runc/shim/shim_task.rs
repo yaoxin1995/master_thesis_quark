@@ -46,7 +46,11 @@ use super::container::*;
 use super::super::super::runc::oci::LinuxResources;
 use super::super::super::runc::sandbox::sandbox::*;
 
-use super::container_io::{ContainerIO, ContainerStdio};
+use super::container_io::{ContainerStdio, ContainerIO};
+
+lazy_static! {
+    pub static ref SANDBOX: Mutex<Sandbox> = Mutex::new(Sandbox::default());
+}
 
 type EventSender = Sender<(String, Box<dyn Message>)>;
 
@@ -179,9 +183,9 @@ impl ShimTask {
                                 ..Default::default()
                             },
                         );
-                    }
+                    } 
                 }
-
+                
                 match cont.processes.get_mut(&execId) {
                     None => {
                         return;
@@ -193,7 +197,7 @@ impl ShimTask {
                         // drop(&p.common.containerIO);
                         // drop(&p.common.stdio);
                         return;
-                    }
+                    } 
                 }
             }
         }

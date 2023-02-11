@@ -506,7 +506,7 @@ pub fn Redirect(
 }
 
 fn console_copy(from: i32, to: i32, cid: &str, pid: i32, filter_sig: bool, sandboxId: &str) -> Result<usize> {
-    let mut buf: [u8; 256] = [0; 256];
+    let mut buf: [u8; 4096] = [0; 4096];
     let mut cnt = 0;
 
     // move terminal stdin redirection to qkernel
@@ -537,22 +537,9 @@ fn console_copy(from: i32, to: i32, cid: &str, pid: i32, filter_sig: bool, sandb
         let str = String::from_utf8_lossy(&rawData[..ret]).to_string();
         info!("console_copy from tty slave to fifo, tty output {:?}", str);
         write_buf(to, &buf[..ret])?;
-        }
+    }
 }
 
-
-fn get_signal(c: u8) -> Option<i32> {
-    // signal characters for x86
-    const INTR_CHAR: u8 = 3;
-    const QUIT_CHAR: u8 = 28;
-    const SUSP_CHAR: u8 = 26;
-    return match c {
-        INTR_CHAR => Some(Signal::SIGINT),
-        QUIT_CHAR => Some(Signal::SIGQUIT),
-        SUSP_CHAR => Some(Signal::SIGTSTP),
-        _ => None,
-    };
-}
 
 fn write_buf(to: i32, buf: &[u8]) -> Result<()> {
     let len = buf.len() as usize;

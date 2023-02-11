@@ -81,8 +81,8 @@ use crate::qlib::kernel::socket::hostinet::hostsocket::HostSocketOperations;
 use crate::qlib::kernel::socket::hostinet::socket::SocketOperations;
 use crate::qlib::kernel::socket::hostinet::uring_socket::UringSocketOperations;
 use crate::qlib::kernel::socket::unix::unix::UnixSocketOperations;
-use crate::shielding_layer::POLICY_CHEKCER;
 use crate::qlib::shield_policy::*;
+use crate::shielding_layer::*;
 
 
 use super::attr::*;
@@ -730,7 +730,7 @@ impl File {
                     
                     {
                         let key = inode.ID();
-                        POLICY_CHEKCER.write().addInoteToTrack(key, inodeType)
+                        INODE_TRACKER.write().addInoteToTrack(key, inodeType)
                     }
                     if isTTY {
                         return Ok(Self::NewTTYFile(&dirent, &fileFlags, fops));

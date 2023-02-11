@@ -230,9 +230,8 @@ pub fn SingletonInit() {
 
         qlib::InitSingleton();
 
-        {
-            POLICY_CHEKCER.write().init(SHARESPACE.k8s_policy.as_mut_ptr().as_ref());
-        }
+
+        init_shielding_layer(SHARESPACE.k8s_policy.as_mut_ptr().as_ref());
 
     }
 }
@@ -316,14 +315,14 @@ pub extern "C" fn syscall_handler(
     
         if llevel == LogLevel::Complex {
             tid = currTask.Thread().lock().id;
-            pid = currTask.Thread().ThreadGroup().ID();
+            pid = currTask.Thread().ThreadGroup().ID();  
             info!("({}/{})------get call id {:?} arg0:{:x}, 1:{:x}, 2:{:x}, 3:{:x}, 4:{:x}, 5:{:x}, userstack:{:x}, return address:{:x}, fs:{:x}",
                 tid, pid, callId, arg0, arg1, arg2, arg3, arg4, arg5, currTask.GetPtRegs().rsp, currTask.GetPtRegs().rcx, GetFs());
         } else if llevel == LogLevel::Simple {
             tid = currTask.Thread().lock().id;
             pid = currTask.Thread().ThreadGroup().ID();
             info!("({}/{})------get call id {:?} arg0:{:x}, 1:{:x}, 2:{:x}, 3:{:x}, 4:{:x}, 5:{:x}, userstack:{:x}, return address:{:x}, fs:{:x}",
-            tid, pid, callId, arg0, arg1, arg2, arg3, arg4, arg5, currTask.GetPtRegs().rsp, currTask.GetPtRegs().rcx, GetFs());
+                tid, pid, callId, arg0, arg1, arg2, arg3, arg4, arg5, currTask.GetPtRegs().rsp, currTask.GetPtRegs().rcx, GetFs());
         }
     }
     
@@ -465,6 +464,17 @@ pub fn InitTsc() {
     VcpuFreqInit();
 }
 
+extern crate hmac;
+extern crate sha2;
+extern crate hex_literal;
+extern crate base64ct;
+use sha2::{Sha256, Digest};
+use hmac::{Hmac, Mac};
+use hex_literal::hex;
+use base64ct::{Base64, Encoding};
+// use hex_literal::hex;
+
+
 #[no_mangle]
 pub extern "C" fn rust_main(
     heapStart: u64,
@@ -511,16 +521,43 @@ pub extern "C" fn rust_main(
 
     /***************** can't run any qcall before this point ************************************/
 
-    {
-        POLICY_CHEKCER.read().printPolicy();
-    }
-
     if id == 0 {
         //error!("start main: {}", ::AllocatorPrint(10));
 
         //ALLOCATOR.Print();
         IOWait();
     };
+
+    let mut hasher = Sha256::new();
+    let data = b"Hello world!";
+    hasher.update(data);
+    // `update` can be called repeatedly and is generic over `AsRef<[u8]>`
+    hasher.update("String data");
+    // Note that calling `finalize()` consumes hasher
+    let hash = hasher.finalize();
+    info!("Binary hash: {:?}", hash);
+
+    type HmacSha256 = Hmac<Sha256>;
+
+    let mut mac = HmacSha256::new_from_slice(b"my secret and secure key")
+    .expect("HMAC can take key of any size");
+    mac.update(b"input message");
+    let result = mac.finalize();
+    let code_bytes = result.into_bytes();
+
+    let expected = hex!("
+    97d2a569059bbcd8ead4444ff99071f4
+    c01d005bcefe0d3567e1be628e5fdcd9
+    ");
+
+    let base64_hash = Base64::encode_string(&hash);
+    info!("Base64-encoded hash: {}", base64_hash);
+
+    let base64_hmac = Base64::encode_string(&code_bytes);
+    info!("Base64-encoded hmac: {}", base64_hmac);
+
+
+    assert_eq!(code_bytes[..], expected[..]);
 
 
     if id == 1 {

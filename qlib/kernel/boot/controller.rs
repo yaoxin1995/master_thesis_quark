@@ -240,7 +240,7 @@ pub fn ControlMsgHandler(fd: *const u8) {
         Payload::IsTerminalAllowed => {
             let is_allowd;
             {
-                is_allowd = POLICY_CHEKCER.read().terminalEndpointerCheck();
+                is_allowd = EXEC_ACCESS_CONTROL.read().terminalEndpointerCheck();
             }
             WriteControlMsgResp(fd, &UCallResp::IsTerminalAllowedResp(is_allowd), true);
         }
@@ -248,7 +248,7 @@ pub fn ControlMsgHandler(fd: *const u8) {
         Payload::IsOneShotCmdAllowed(oneShotCmd) => {
             let is_allowd;
             {
-                is_allowd = POLICY_CHEKCER.read().singleShotCommandLineModeCheck(oneShotCmd);
+                is_allowd = EXEC_ACCESS_CONTROL.read().singleShotCommandLineModeCheck(oneShotCmd);
             }
             WriteControlMsgResp(fd, &&UCallResp::IsOneShotCmdAllowedResp(is_allowd), true);
         }

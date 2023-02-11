@@ -399,9 +399,9 @@ impl Drop for Inode {
             let inodeId = self.0.lock().UniqueId;
             info!("Drop inode id {:?}, strong count: {:?}, weak count: {:?}", inodeId, Arc::strong_count(&self.0), Arc::weak_count(&self.0));
             {
-                let mut checker_locked = POLICY_CHEKCER.try_write();
+                let mut checker_locked = INODE_TRACKER.try_write();
                 while !checker_locked.is_some() {
-                    checker_locked = POLICY_CHEKCER.try_write();
+                    checker_locked = INODE_TRACKER.try_write();
                 }
 
                 let mut checker = checker_locked.unwrap();

@@ -599,7 +599,7 @@ impl FileOperations for TTYFileOps {
 
         info!("tty WriteAt");
 
-        let check_readlocked = POLICY_CHEKCER.read();
+        let check_readlocked = TERMINAL_SHIELD.read();
         
         // TODO: check if we need to encrypt the terminal
         let (new_length, iov) = check_readlocked.termianlIoEncryption(srcs, task)?;

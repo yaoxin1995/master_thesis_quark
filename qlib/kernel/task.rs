@@ -473,17 +473,17 @@ impl Task {
         return ret;
     }
 
-    pub fn NewStdFds(&mut self, stdfds: &[i32], isTTY: bool) -> Result<()> {
+    pub fn NewStdFds(&mut self, stdfds: &[i32], isTTY: bool, stdioArgs: StdioArgs) -> Result<()> {
 
         assert!(stdfds.len() == 3);
         for i in 0..stdfds.len() {
             let file;
             if i == 0 {
-                file = self.NewFileFromHostStdioFd(i as i32, stdfds[i], isTTY, TrackInodeType::Stdin)?;
+                file = self.NewFileFromHostStdioFd(i as i32, stdfds[i], isTTY, TrackInodeType::Stdin(stdioArgs.clone()))?;
             } else if i == 1 {
-                file = self.NewFileFromHostStdioFd(i as i32, stdfds[i], isTTY, TrackInodeType::Stdout)?;
+                file = self.NewFileFromHostStdioFd(i as i32, stdfds[i], isTTY, TrackInodeType::Stdout(stdioArgs.clone()))?;
             } else {
-                file = self.NewFileFromHostStdioFd(i as i32, stdfds[i], isTTY, TrackInodeType::Stderro)?;
+                file = self.NewFileFromHostStdioFd(i as i32, stdfds[i], isTTY, TrackInodeType::Stderro(stdioArgs.clone()))?;
             }
                 
             file.flags.lock().0.NonBlocking = false; //need to clean the stdio nonblocking

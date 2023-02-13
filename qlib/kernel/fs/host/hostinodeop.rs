@@ -773,10 +773,19 @@ impl HostInodeOp {
             let old_len = len;
             if inodeType == InodeType::Pipe && inode_checker_locked.isInodeExist(&inode_id){
                 let trackedInodeType = inode_checker_locked.getInodeType(&inode_id);
-                if trackedInodeType == TrackInodeType::Stderro || trackedInodeType == TrackInodeType::Stdout{
-                    buf = stdout_shiled_readlocked.encryptContainerStdouterr(buf);
-                    len = buf.Len();
-                }
+                match trackedInodeType {
+                    TrackInodeType::Stdout(args) => {
+                        buf = stdout_shiled_readlocked.encryptContainerStdouterr(buf, args.exec_user_type, args.stdio_type);
+                        len = buf.Len();
+                    },
+                    TrackInodeType::Stderro (args) => {
+                        buf = stdout_shiled_readlocked.encryptContainerStdouterr(buf, args.exec_user_type, args.stdio_type);
+                        len = buf.Len();
+                    },
+                    _ => {
+
+                    },
+                };
             }
             drop(stdout_shiled_readlocked);
             drop(inode_checker_locked);

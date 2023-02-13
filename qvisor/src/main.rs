@@ -54,8 +54,13 @@ extern crate tabwriter;
 
 extern crate aes_gcm;
 extern crate getrandom;
+extern crate hmac;
+extern crate sha2;
+extern crate hex_literal;
+extern crate base64ct;
 
 pub mod shielding_layer;
+
 
 #[macro_use]
 pub mod asm;

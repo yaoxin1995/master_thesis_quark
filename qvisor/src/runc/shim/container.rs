@@ -207,31 +207,37 @@ impl CommonContainer {
         let mut exec_process =
             ExecProcess::try_from(req).map_err(|e| Error::Common(format!("{:?}", e)))?;
 
-        let policy_req;
-        if exec_process.terminal() == true {
-            policy_req = RequestType::Terminal;
+        let mut args = Vec::new();
+        for arg in &exec_process.spec.args {
+            args.push(arg.clone());
         }
-        else {
-            //Todo: encrypt the env, args, cwd on client side and decrypt them in qkernel
-            let mut args = Vec::new();
-            for arg in &exec_process.spec.args {
-                args.push(arg.clone());
-            }
     
-            let mut envv = Vec::new();
-            for env in &exec_process.spec.env {
-                envv.push(env.clone())
-            }
-
-            let cmd_args = OneShotCmdArgs {
+        let mut envv = Vec::new();
+        for env in &exec_process.spec.env {
+            envv.push(env.clone())
+        }
+        
+        let authentication_ac_check_req_args;
+        if exec_process.terminal() == true {
+            authentication_ac_check_req_args = ExecAuthenAcCheckArgs {
+                exec_id: exec_id.clone(),
                 args: args,
                 env: envv,
                 cwd: exec_process.spec.cwd.clone(),
+                req_type: ExecRequestType::Terminal,
             };
-
-            policy_req = RequestType::SingleShotCmdMode(cmd_args);
+        
         }
-        let is_req_allowed = self.container.req_autherity_check(policy_req);
+        else {
+            authentication_ac_check_req_args = ExecAuthenAcCheckArgs {
+                exec_id: exec_id.clone(),
+                args: args,
+                env: envv,
+                cwd: exec_process.spec.cwd.clone(),
+                req_type: ExecRequestType::SingleShotCmdMode,
+            };
+        }
+        let is_req_allowed = self.container.exec_authentication_ac_check(authentication_ac_check_req_args);
 
         if !is_req_allowed {
             info!("req exec is rejected, terminal mode {:?}", exec_process.terminal());

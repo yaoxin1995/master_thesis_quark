@@ -45,7 +45,6 @@ use super::super::sandbox::sandbox::*;
 use super::super::shim::container_io::*;
 use super::super::specutils::specutils::*;
 
-use super::super::super::qlib::shield_policy::*;
 
 
 // metadataFilename is the name of the metadata file relative to the
@@ -1158,41 +1157,32 @@ impl Container {
         return ret;
     }
 
-    pub fn req_autherity_check(&self, req_type: RequestType) -> bool {
-
+    pub fn exec_authentication_ac_check(&self, args: ExecAuthenAcCheckArgs) -> bool {
         match self.Sandbox.as_ref().unwrap().SandboxConnect() {
             Ok(client) => {
                 let ucall_req;
-                match req_type {
-                    RequestType::SingleShotCmdMode(ref arg) => {
-                        ucall_req = UCallReq::IsOneShotCmdAllowed(arg.clone());
-                    }
-                    RequestType::Terminal => {
-                        ucall_req = UCallReq::IsTerminalAllowed;
-                    }
-                }
+                ucall_req = UCallReq::ExecAthenAcCheck(args.clone());
             
-                let resp = client.Call(&ucall_req).expect(&format!("req_autherity_check return error, req_type {:?}",  req_type));
+                let resp = client.Call(&ucall_req).expect(&format!("req_authentication_ac_check return error, req_type {:?}",  args.req_type));
 
                 let res = match resp {
-                    UCallResp::IsOneShotCmdAllowedResp(r) => r,
-                    UCallResp::IsTerminalAllowedResp(r)=> r,
+                    UCallResp::ExecAthenAcCheckResp(r) => r,
                     _ => {
-                        error!("req_autherity_check not support resp....");
+                        error!("req_authentication_ac_check not support resp....");
                         false
                     },
                 };
 
-                info!("req_autherity_check return {:?} for req {:?}", res ,req_type);
+                info!("req_authentication_ac_check return {:?} for req {:?}", res , args.req_type);
                 return res;
 
             }
             //the container has exited
             Err(Error::SysError(SysErr::ECONNREFUSED)) => {
-                info!("req_autherity_check SandboxConnect: connect fail....");
+                info!("req_authentication_ac_check SandboxConnect: connect fail....");
             }
             Err(e) => {
-                info!("req_autherity_check SandboxConnect: connect fail, error {:?}" ,e);
+                info!("req_authentication_ac_check SandboxConnect: connect fail, error {:?}" ,e);
             }
             
         }
@@ -1213,7 +1203,7 @@ pub fn runInCgroup(cg: &Option<Cgroup>, mut f: impl FnMut() -> Result<()>) -> Re
 
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct ExecArgs {
-    pub Argv: Vec<String>,
+    pub Argv:Vec<String>,
     pub Envv: Vec<String>,
     pub Root: String,
     pub WorkDir: String,

@@ -368,6 +368,7 @@ pub fn IsSubpath(subpath: &str, path: &str) -> (String, bool) {
     if cleanPath == cleanSubpath {
         return ("".to_string(), false);
     }
+    info!("cleanSubpath {:?}, cleanPath {:?}", cleanSubpath, cleanPath);
 
     if HasPrefix(&cleanSubpath, &cleanPath) {
         return (TrimPrefix(&cleanSubpath, &cleanPath), true);
@@ -377,6 +378,7 @@ pub fn IsSubpath(subpath: &str, path: &str) -> (String, bool) {
 }
 
 pub fn HasPrefix(s: &str, prefix: &str) -> bool {
+    info!("s.len {:?}, prefix.len() {:?}, s[..prefix.len()] :{:?}, prefix[..] {:?}", s.len(),  prefix.len(), s,  prefix);
     return s.len() >= prefix.len() && s[..prefix.len()] == prefix[..];
 }
 

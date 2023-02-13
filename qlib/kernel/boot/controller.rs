@@ -236,23 +236,14 @@ pub fn ControlMsgHandler(fd: *const u8) {
             SetWaitContainerfd(fd);
         }
 
-        // policy checker specified
-        Payload::IsTerminalAllowed => {
+                // policy checker specified
+        Payload::ExecAthenAcCheck(AuthAcCheckArgs) => {
             let is_allowd;
             {
-                is_allowd = EXEC_ACCESS_CONTROL.read().terminalEndpointerCheck();
+                        is_allowd = EXEC_AUTH_AC.write().exec_req_authentication(AuthAcCheckArgs);
             }
-            WriteControlMsgResp(fd, &UCallResp::IsTerminalAllowedResp(is_allowd), true);
+            WriteControlMsgResp(fd, &&UCallResp::ExecAthenAcCheckResp(is_allowd), true);
         }
-
-        Payload::IsOneShotCmdAllowed(oneShotCmd) => {
-            let is_allowd;
-            {
-                is_allowd = EXEC_ACCESS_CONTROL.read().singleShotCommandLineModeCheck(oneShotCmd);
-            }
-            WriteControlMsgResp(fd, &&UCallResp::IsOneShotCmdAllowedResp(is_allowd), true);
-        }
-
         Payload::ProcessIncommingTerminalIoFrame(args) => {
             info!("Payload::ProcessIncommingTerminalIoFrame start, pid {}", args.pid);
 

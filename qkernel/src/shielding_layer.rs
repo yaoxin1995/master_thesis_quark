@@ -9,6 +9,7 @@ use qlib::control_msg::*;
 use qlib::path::*;
 use qlib::common::*;
 use qlib::shield_policy::*;
+use qlib::kernel::boot::controller::{WriteControlMsgResp, WriteWaitAllResponse};
 use crate::aes_gcm::{
     aead::{Aead, KeyInit, OsRng, generic_array::{GenericArray, typenum::U32}},
     Aes256Gcm, Nonce, // Or `Aes128Gcm`
@@ -21,6 +22,8 @@ use super::qlib::kernel::{SHARESPACE, IOURING, fd::*, boot::controller::HandleSi
 use sha2::{Sha256};
 use hmac::{Hmac, Mac};
 use base64ct::{Base64, Encoding};
+use qlib::vcpu_mgr::*;
+use qlib::kernel::taskMgr::SwitchToNewTask;
 
 lazy_static! {
     pub static ref TERMINAL_SHIELD:  RwLock<TerminalShield> = RwLock::new(TerminalShield::default());
@@ -262,9 +265,19 @@ impl StdoutExecResultShiled{
             StdioType::SandboxStdio => {
                 info!("case 3:if this is root container stdout / stderr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
                 return src;
+            },
+            StdioType::SessionAllocationStdio(ref s) => {
+                info!("case 4:if this is session allocation request, user_type:{:?}, stdio_type {:?}, session {:?}", user_type, stdio_type, s);
+
+                let encoded_session: Vec<u8> = postcard::to_allocvec(s).unwrap();
+                let encrypted_session = prepareEncodedIoFrame(&encoded_session[..], &self.key).unwrap();
+                // write session to stdout
+                let mut buf= DataBuff::New(encrypted_session.len());
+                buf.buf = encrypted_session;
+                return buf;
             }
         }
-        info!("case4 encryptContainerStdouterr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
+        info!("case5 encryptContainerStdouterr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
         let rawData= src.buf.clone();
 
         let str = String::from_utf8_lossy(&rawData).to_string();
@@ -297,6 +310,14 @@ const HMAC_INDEX: usize = 1;
 const ENCRYPTED_MESSAGE_INDEX: usize = 2;
 const NONCE_INDEX: usize = 3;
 const PRIVILEGE_KEYWORD: &str = "Privileged ";
+const SESSION_ALLOCATION_REQUEST: &str = "Login";
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+pub struct ExecSession {
+    session_id: u32,
+    counter: u32,
+}
+
 
 pub fn verify_hmac (key_slice : &[u8], message: &String, base64_encoded_code: &String) -> bool {
     type HmacSha256 = Hmac<Sha256>;
@@ -416,7 +437,7 @@ impl ExecAthentityAcChekcer{
         info!("verify_privileged_req, exec_req_args {:?}", exec_req_args);
         // Hmac authentication
         let mut privileged_cmd = exec_req_args.args.clone();
-        let cmd_in_plain_text = match verify_privileged_exec_cmd(&mut privileged_cmd, &self.hmac_key_slice, &self.decryption_key) {
+        let mut cmd_in_plain_text = match verify_privileged_exec_cmd(&mut privileged_cmd, &self.hmac_key_slice, &self.decryption_key) {
             Ok(args) => args,
             Err(e) => {
                 info!("privileged req authentication failed {:?}", e);
@@ -424,9 +445,26 @@ impl ExecAthentityAcChekcer{
             }
         };
 
+        // Session allocation request
+        let cmd = cmd_in_plain_text.get(0).unwrap();
+        info!("verify_privileged_req cmd {:?} SESSION_ALLOCATION_REQUEST {:?}  cmd.eq(SESSION_ALLOCATION_REQUEST):{:?}", 
+                                cmd, SESSION_ALLOCATION_REQUEST, cmd.eq(SESSION_ALLOCATION_REQUEST));
+        let mut exec_req_args = exec_req_args.clone();
+        if cmd.eq(SESSION_ALLOCATION_REQUEST) {
+            let mut rng = OsRng;
+            let s = ExecSession {
+                session_id: rng.next_u32(),
+                counter: rng.next_u32(),
+            };
+            exec_req_args.req_type = ExecRequestType::SessionAllocationReq(s);
+            cmd_in_plain_text = vec!["ls".to_string(), "/".to_string()];
+
+        }
+
         //TODO Access Control
         match exec_req_args.req_type {
             ExecRequestType::Terminal => {
+                info!("verify_privileged_req, exec_req_args.req_type {:?}", exec_req_args.req_type);
                 let res = self.check_terminal_access_control (UserType::Privileged);
 
                 if res == false {
@@ -435,12 +473,17 @@ impl ExecAthentityAcChekcer{
 
             },
             ExecRequestType::SingleShotCmdMode =>{
+                info!("verify_privileged_req, exec_req_args.req_type {:?}", exec_req_args.req_type);
                 let allowed_cmd = &self.policy.privileged_user_config.single_shot_command_line_mode_configs.allowed_cmd;
                 let allowed_path = &self.policy.privileged_user_config.single_shot_command_line_mode_configs.allowed_dir;
                 let res = self.check_oneshot_cmd_mode_access_control(UserType::Privileged, &cmd_in_plain_text, allowed_cmd, allowed_path, &exec_req_args.cwd);
                 if res == false {
                     return false;
                 }
+            },
+            ExecRequestType::SessionAllocationReq(ref _s) => {
+                info!("verify_privileged_req, exec_req_args.req_type {:?}", exec_req_args.req_type);
+
             }
             
         }
@@ -481,7 +524,8 @@ impl ExecAthentityAcChekcer{
                 if res == false {
                     return false;
                 }
-            }            
+            },
+            _ => return false,            
         }
 
         let exec_req = AuthenticatedExecReq {
@@ -532,8 +576,40 @@ impl ExecAthentityAcChekcer{
 
         return is_cmd_path_allowed;
     }
+
+
+    // pub fn session_request_handler (&self, exec_stdfds: &[i32], resp_fd : i32, container_id : String, session: ExecSession, exec_id : String) -> () {
+
+    //     info!("session_request_handler start, session {:?}, exec_id: {:?} container_id {:?}", session, exec_id, container_id);
+    //     // return tid to tell the shim the exec req is launched
+    //     let mut rng = OsRng;
+    //     let tid = rng.next_u32();
+    //     WriteControlMsgResp(resp_fd, &UCallResp::ExecProcessResp(tid as i32), true);
+        
+    //     //encrypt session and encode it to proper format
+    //     let encoded_session: Vec<u8> = postcard::to_allocvec(&session).unwrap();
+    //     let encrypted_session = prepareEncodedIoFrame(&encoded_session[..], &self.decryption_key).unwrap();
+
+
+    //     // write session to stdout
+    //     let mut buf= DataBuff::New(encrypted_session.len());
+    //     buf.buf = encrypted_session;
+    //     let iovs = buf.Iovs(buf.Len());
+    //     let ret = IOWrite(exec_stdfds[1], &iovs).unwrap();
+    //     assert!(ret == buf.Len() as i64);
+
+    //     // notify the shim that the session allocation exec request is finished 
+    //     WriteWaitAllResponse(container_id, exec_id, 0);
+
+    //     // free curent task in the waitfn context
+    //     CPULocal::SetPendingFreeStack(Task::Current().taskId);
+    //     SwitchToNewTask();
+    // }
     
 }
+
+
+
 
 pub fn single_shot_cmd_check (cmd_args: &Vec<String>,  allowed_cmds: &Vec<String>, allowed_dir: &Vec<String>, cwd: &String) -> bool {
 

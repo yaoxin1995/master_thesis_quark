@@ -1,7 +1,8 @@
 
-use alloc::string::String;
+use alloc::string::{String};
 use alloc::vec::Vec;
 use crate::shielding_layer::*;
+use alloc::collections::BTreeMap;
 
 
 
@@ -11,6 +12,7 @@ pub enum StdioType {
     SandboxStdio, // the stdio of root conainer, i.e., "pause" container
     ContaienrStdio,  // the stio of subcontainers
     ExecProcessStdio,   // the stdio of exec process
+    SessionAllocationStdio (ExecSession), // tue stdio of session allocation req
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
@@ -82,7 +84,7 @@ pub struct Policy {
     pub privileged_user_config: PrivilegedUserConfig,
     pub unprivileged_user_config:  UnprivilegedUserConfig,
     pub hmac_key_slice: String,
-    pub encryption_key: String,
+    pub log_encryption_key: String,
     pub secret: Secret,
 }
 
@@ -91,6 +93,7 @@ pub enum ExecRequestType {
     #[default]
     Terminal,  // define a white list
     SingleShotCmdMode,  // define a black list
+    SessionAllocationReq(ExecSession), 
 }
 
 

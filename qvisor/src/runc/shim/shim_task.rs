@@ -116,7 +116,7 @@ impl ShimTask {
         match containers.lock().unwrap().get_mut(&cid) {
             None => error!("ShimTask::Exit can't find container {}", cid),
             Some(cont) => {
-                error!("shim Exit 1 {:?}", cont.init.pid());
+                error!("shim Exit 1 {:?}, status {:?}", cont.init.pid(), status);
                 let bundle = cont.bundle.to_string();
                 if execId.len() == 0 {
                     // kill all children process if the container has a private PID namespace

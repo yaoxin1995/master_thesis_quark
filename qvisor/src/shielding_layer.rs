@@ -8,6 +8,7 @@ use super::qlib::control_msg::*;
 use super::qlib::path::*;
 use super::qlib::common::*;
 use super::qlib::shield_policy::*;
+use super::qlib::kernel::boot::controller::{WriteControlMsgResp, WriteWaitAllResponse};
 use crate::aes_gcm::{
     aead::{Aead, KeyInit, generic_array::{GenericArray, typenum::U32}},
     Aes256Gcm, Nonce, // Or `Aes128Gcm`
@@ -18,6 +19,8 @@ use alloc::collections::btree_map::BTreeMap;
 use super::qlib::linux_def::*;
 use super::qlib::kernel::task::*;
 use super::qlib::kernel::{SHARESPACE, IOURING, fd::*, boot::controller::HandleSignal};
+use super::qlib::vcpu_mgr::*;
+use super::qlib::kernel::taskMgr::SwitchToNewTask;
 
 use sha2::{Sha256};
 use hmac::{Hmac, Mac};
@@ -27,7 +30,7 @@ use base64ct::{Base64, Encoding};
 
 
 /*********************************************************************************************************************************************************
-    The functions in this file will not be called, we keep this file just to make the qvisor binary file compile successfully. 
+    The functions in this file will never be called, we keep this file just to make the qvisor binary file compile successfully. 
     For the shielding layer implementation, please view the the file in dir qkernel/src/shiedling_layer_rs
 **********************************************************************************************************************************************************/
 
@@ -256,6 +259,9 @@ impl StdoutExecResultShiled{
             StdioType::SandboxStdio => {
                 return src;
             }
+            StdioType::SessionAllocationStdio(ref s) => {
+                return src;
+            }
         }
 
         let rawData= src.buf.clone();
@@ -285,6 +291,14 @@ const HMAC_INDEX: usize = 1;
 const ENCRYPTED_MESSAGE_INDEX: usize = 2;
 const NONCE_INDEX: usize = 3;
 const PRIVILEGE_KEYWORD: &str = "Privileged ";
+const SESSION_ALLOCATION_REQUEST: &str = "Login";
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+pub struct ExecSession {
+    session_id: u32,
+    counter: u32,
+}
+
 
 pub fn verify_hmac (key_slice : &[u8], message: &String, base64_encoded_code: &String) -> bool {
     type HmacSha256 = Hmac<Sha256>;
@@ -401,12 +415,15 @@ impl ExecAthentityAcChekcer{
 
         // Hmac authentication
         let mut privileged_cmd = exec_req_args.args.clone();
-        let cmd_in_plain_text = match verify_privileged_exec_cmd(&mut privileged_cmd, &self.hmac_key_slice, &self.decryption_key) {
+        let mut cmd_in_plain_text = match verify_privileged_exec_cmd(&mut privileged_cmd, &self.hmac_key_slice, &self.decryption_key) {
             Ok(args) => args,
-            Err(_e) => {
+            Err(e) => {
                 return false;
             }
         };
+
+        // Session allocation request
+        let mut exec_req_args = exec_req_args.clone();
 
         //TODO Access Control
         match exec_req_args.req_type {
@@ -425,6 +442,9 @@ impl ExecAthentityAcChekcer{
                 if res == false {
                     return false;
                 }
+            },
+            ExecRequestType::SessionAllocationReq(ref _s) => {
+
             }
             
         }
@@ -445,6 +465,7 @@ impl ExecAthentityAcChekcer{
 
     fn verify_unprivileged_req (&mut self, exec_req_args: ExecAuthenAcCheckArgs) -> bool {
 
+
         let cmd_in_plain_text = &exec_req_args.args;
         //TODO Access Control
         match exec_req_args.req_type {
@@ -463,7 +484,8 @@ impl ExecAthentityAcChekcer{
                 if res == false {
                     return false;
                 }
-            }            
+            },
+            _ => return false,            
         }
 
         let exec_req = AuthenticatedExecReq {
@@ -512,8 +534,23 @@ impl ExecAthentityAcChekcer{
 
         return is_cmd_path_allowed;
     }
+
+
+    // pub fn session_request_handler (&self, _exec_stdfds: &[i32], resp_fd : i32, container_id : String, _session: ExecSession, exec_id : String) -> () {
+
+    //     // return tid to tell the shim the exec req is launched
+    //     WriteControlMsgResp(resp_fd, &UCallResp::ExecProcessResp(1 as i32), true);
+        
+    //     // notify the shim that the session allocation exec request is finished 
+    //     WriteWaitAllResponse(container_id, exec_id, 0);
+
+    //     // free curent task in the waitfn context
+    //     CPULocal::SetPendingFreeStack(Task::Current().taskId);
+    //     SwitchToNewTask();
+    // }
     
 }
+
 
 pub fn single_shot_cmd_check (cmd_args: &Vec<String>,  allowed_cmds: &Vec<String>, allowed_dir: &Vec<String>, cwd: &String) -> bool {
 

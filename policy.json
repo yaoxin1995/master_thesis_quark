@@ -20,8 +20,10 @@
     },
 
     "hmac_key_slice": "asjdhasuifricnjkdioa",
+    
 
-    "encryption_key": "123",
+    "log_encryption_key": "123",
+
 
     "secret": {
         "env_variables" : [

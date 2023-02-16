@@ -144,7 +144,7 @@ impl Loader {
     }
 
     //Exec a new process in current sandbox, it supports 'runc exec'
-    pub fn ExecProcess(&self, process: Process) -> Result<(i32, u64, u64, u64)> {
+    pub fn ExecProcess(&self, process: Process, resp_fd: i32) -> Result<(i32, u64, u64, u64)> {
         info!("ExecProcess {:?}", process);
 
         let exec_id = match process.ExecId.clone() {
@@ -154,13 +154,27 @@ impl Loader {
             }
         };
         
-        let exec_auth_ac = EXEC_AUTH_AC.read();
-        let exec_args = match exec_auth_ac.authenticated_reqs.get(&exec_id) {
+        let mut exec_auth_ac = EXEC_AUTH_AC.write();
+        let exec_args = match exec_auth_ac.authenticated_reqs.remove(&exec_id) {
             Some(authenticated_req) => authenticated_req,
             None => {
                 return Err(Error::Common(format!("the req is not valid req")));
             }
         };
+
+        // match exec_args.exec_type {
+        //     ExecRequestType::SessionAllocationReq(session) => {
+        //         exec_auth_ac.session_request_handler(&process.Stdiofds, resp_fd, process.ID.clone(), session, exec_id.clone());
+
+        //         // should never reach here since the task exited
+        //         return Err(Error::Common(format!("session_request_handler returned")));
+                
+        //     },
+        //     _ => {
+
+        //     }
+            
+        // }
 
         let mut process = process.clone();
         process.Args = exec_args.args.clone();
@@ -214,11 +228,24 @@ impl Loader {
             ttyops.InitForegroundProcessGroup(&tg.ProcessGroup().unwrap());
             ttyFileOps = Some(ttyops);
         } else {
-            let stdioArgs = StdioArgs {
-                exec_id: Some(exec_id.clone()),
-                exec_user_type: Some(exec_args.user_type.clone()),
-                stdio_type: StdioType::ExecProcessStdio
+            info!("exec start req  {:?}", exec_args);
+            let stdioArgs = match exec_args.exec_type {
+                ExecRequestType::SessionAllocationReq(ref s) => {
+                    StdioArgs {
+                        exec_id: Some(exec_id.clone()),
+                        exec_user_type: Some(exec_args.user_type.clone()),
+                        stdio_type: StdioType::SessionAllocationStdio(s.clone())
+                    }
+                },
+                _ => {
+                    StdioArgs {
+                        exec_id: Some(exec_id.clone()),
+                        exec_user_type: Some(exec_args.user_type.clone()),
+                        stdio_type: StdioType::ExecProcessStdio
+                    }
+                }
             };
+
             task.NewStdFds(&procArgs.Stdiofds[..], false, stdioArgs)
                 .expect("Task: create std fds");
         }

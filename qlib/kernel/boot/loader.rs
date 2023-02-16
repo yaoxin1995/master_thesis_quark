@@ -173,7 +173,7 @@ impl Loader {
     }
 
     //Exec a new process in current sandbox, it supports 'runc exec'
-    pub fn ExecProcess(&self, process: Process, resp_fd: i32) -> Result<(i32, u64, u64, u64)> {
+    pub fn ExecProcess(&self, process: Process, _resp_fd: i32) -> Result<(i32, u64, u64, u64)> {
         info!("ExecProcess {:?}", process);
 
         let exec_id = match process.ExecId.clone() {

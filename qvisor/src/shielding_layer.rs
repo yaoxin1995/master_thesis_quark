@@ -8,7 +8,6 @@ use super::qlib::control_msg::*;
 use super::qlib::path::*;
 use super::qlib::common::*;
 use super::qlib::shield_policy::*;
-use super::qlib::kernel::boot::controller::{WriteControlMsgResp, WriteWaitAllResponse};
 use crate::aes_gcm::{
     aead::{Aead, KeyInit, generic_array::{GenericArray, typenum::U32}},
     Aes256Gcm, Nonce, // Or `Aes128Gcm`
@@ -19,8 +18,6 @@ use alloc::collections::btree_map::BTreeMap;
 use super::qlib::linux_def::*;
 use super::qlib::kernel::task::*;
 use super::qlib::kernel::{SHARESPACE, IOURING, fd::*, boot::controller::HandleSignal};
-use super::qlib::vcpu_mgr::*;
-use super::qlib::kernel::taskMgr::SwitchToNewTask;
 
 use sha2::{Sha256};
 use hmac::{Hmac, Mac};
@@ -259,7 +256,7 @@ impl StdoutExecResultShiled{
             StdioType::SandboxStdio => {
                 return src;
             }
-            StdioType::SessionAllocationStdio(ref s) => {
+            StdioType::SessionAllocationStdio(ref _s) => {
                 return src;
             }
         }
@@ -415,15 +412,15 @@ impl ExecAthentityAcChekcer{
 
         // Hmac authentication
         let mut privileged_cmd = exec_req_args.args.clone();
-        let mut cmd_in_plain_text = match verify_privileged_exec_cmd(&mut privileged_cmd, &self.hmac_key_slice, &self.decryption_key) {
+        let cmd_in_plain_text = match verify_privileged_exec_cmd(&mut privileged_cmd, &self.hmac_key_slice, &self.decryption_key) {
             Ok(args) => args,
-            Err(e) => {
+            Err(_e) => {
                 return false;
             }
         };
 
         // Session allocation request
-        let mut exec_req_args = exec_req_args.clone();
+        let exec_req_args = exec_req_args.clone();
 
         //TODO Access Control
         match exec_req_args.req_type {
@@ -467,7 +464,6 @@ impl ExecAthentityAcChekcer{
 
 
         let cmd_in_plain_text = &exec_req_args.args;
-        //TODO Access Control
         match exec_req_args.req_type {
             ExecRequestType::Terminal => {
                 let res = self.check_terminal_access_control (UserType::Unprivileged);
@@ -534,20 +530,6 @@ impl ExecAthentityAcChekcer{
 
         return is_cmd_path_allowed;
     }
-
-
-    // pub fn session_request_handler (&self, _exec_stdfds: &[i32], resp_fd : i32, container_id : String, _session: ExecSession, exec_id : String) -> () {
-
-    //     // return tid to tell the shim the exec req is launched
-    //     WriteControlMsgResp(resp_fd, &UCallResp::ExecProcessResp(1 as i32), true);
-        
-    //     // notify the shim that the session allocation exec request is finished 
-    //     WriteWaitAllResponse(container_id, exec_id, 0);
-
-    //     // free curent task in the waitfn context
-    //     CPULocal::SetPendingFreeStack(Task::Current().taskId);
-    //     SwitchToNewTask();
-    // }
     
 }
 

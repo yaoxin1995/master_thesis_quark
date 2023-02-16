@@ -9,7 +9,6 @@ use qlib::control_msg::*;
 use qlib::path::*;
 use qlib::common::*;
 use qlib::shield_policy::*;
-use qlib::kernel::boot::controller::{WriteControlMsgResp, WriteWaitAllResponse};
 use crate::aes_gcm::{
     aead::{Aead, KeyInit, OsRng, generic_array::{GenericArray, typenum::U32}},
     Aes256Gcm, Nonce, // Or `Aes128Gcm`
@@ -22,8 +21,6 @@ use super::qlib::kernel::{SHARESPACE, IOURING, fd::*, boot::controller::HandleSi
 use sha2::{Sha256};
 use hmac::{Hmac, Mac};
 use base64ct::{Base64, Encoding};
-use qlib::vcpu_mgr::*;
-use qlib::kernel::taskMgr::SwitchToNewTask;
 
 lazy_static! {
     pub static ref TERMINAL_SHIELD:  RwLock<TerminalShield> = RwLock::new(TerminalShield::default());
@@ -337,10 +334,10 @@ pub fn verify_hmac (key_slice : &[u8], message: &String, base64_encoded_code: &S
 }
 
 /**
- * Privilege request format:
+ * Privilege request format:                  
  * *********************** * *********************** ************************
- *         Privileged     /    hmac(Privileged|cmd|args)     /  encrypted cmd + args / tag
- * ************************ ************************************************                    
+ *         Privileged / hmac(Privileged|Session_id|Conter|cmd|args, privilegd_user_key) /  (Session_id + Conter + cmd + args) / nonce
+ * ************************ ************************************************
  */
 pub fn verify_privileged_exec_cmd(privileged_cmd: &mut Vec<String>, key_slice: &[u8], key: &GenericArray<u8, U32>) -> Result<Vec<String>>  {
 
@@ -389,7 +386,8 @@ pub struct ExecAthentityAcChekcer {
     policy: Policy,
     pub hmac_key_slice: Vec<u8>,
     pub decryption_key: GenericArray<u8, U32>,
-    pub authenticated_reqs: BTreeMap<String, AuthenticatedExecReq>
+    pub authenticated_reqs: BTreeMap<String, AuthenticatedExecReq>,
+    pub auth_session: BTreeMap<u32, ExecSession>,
 }
 
 
@@ -417,6 +415,7 @@ impl ExecAthentityAcChekcer{
         self.hmac_key_slice = hmac_key_slice.clone();
         self.decryption_key = decryption_key.clone();
         self.policy = policy.clone();
+        self.auth_session = BTreeMap::new();
     }
 
     pub fn exec_req_authentication (&mut self, exec_req: ExecAuthenAcCheckArgs) -> bool {
@@ -445,7 +444,7 @@ impl ExecAthentityAcChekcer{
             }
         };
 
-        // Session allocation request
+        // Session allocation request:
         let cmd = cmd_in_plain_text.get(0).unwrap();
         info!("verify_privileged_req cmd {:?} SESSION_ALLOCATION_REQUEST {:?}  cmd.eq(SESSION_ALLOCATION_REQUEST):{:?}", 
                                 cmd, SESSION_ALLOCATION_REQUEST, cmd.eq(SESSION_ALLOCATION_REQUEST));
@@ -456,12 +455,45 @@ impl ExecAthentityAcChekcer{
                 session_id: rng.next_u32(),
                 counter: rng.next_u32(),
             };
+            self.auth_session.insert(s.session_id, s.clone());
             exec_req_args.req_type = ExecRequestType::SessionAllocationReq(s);
             cmd_in_plain_text = vec!["ls".to_string(), "/".to_string()];
 
+        } else {
+            // Reqeust resource request:
+
+            // check if counter and session id are valid
+            const SESSION_ID_INDEX: usize = 0;
+            const SESSION_COUNTER_INDEX: usize = 1;
+
+            let session_id = cmd_in_plain_text.get(SESSION_ID_INDEX).unwrap().parse::<u32>().unwrap();
+            let counter = cmd_in_plain_text.get(SESSION_COUNTER_INDEX).unwrap().parse::<u32>().unwrap();
+
+            // replay case 1: attacker send a request that belongs to a old session (Sessions that existed before the vm was restarted)
+            if !self.auth_session.contains_key(&session_id) {
+                info!("verify_privileged_req,  replay case 1: attacker send a request that belongs to a old session (Sessions that existed before the vm was restarted");
+                return false;
+            }
+
+            let mut session = self.auth_session.remove(&session_id).unwrap();
+
+            // replay case 2: attacker send a old request that belongs to the current session
+           if counter < session.counter {
+                info!("verify_privileged_req, replay case 2: attacker send a old request that belongs to the current session , counter {:?}. session.counter {:?}",counter,  session.counter);
+                return false;
+            }
+
+            session.counter = session.counter + 1;
+
+            self.auth_session.insert(session.session_id, session.clone());
+
+            
+            cmd_in_plain_text.remove(0);
+            cmd_in_plain_text.remove(0);
+
+            info!("verify_privileged_req, cmd_in_plain_text {:?}", cmd_in_plain_text);
         }
 
-        //TODO Access Control
         match exec_req_args.req_type {
             ExecRequestType::Terminal => {
                 info!("verify_privileged_req, exec_req_args.req_type {:?}", exec_req_args.req_type);
@@ -577,35 +609,6 @@ impl ExecAthentityAcChekcer{
         return is_cmd_path_allowed;
     }
 
-
-    // pub fn session_request_handler (&self, exec_stdfds: &[i32], resp_fd : i32, container_id : String, session: ExecSession, exec_id : String) -> () {
-
-    //     info!("session_request_handler start, session {:?}, exec_id: {:?} container_id {:?}", session, exec_id, container_id);
-    //     // return tid to tell the shim the exec req is launched
-    //     let mut rng = OsRng;
-    //     let tid = rng.next_u32();
-    //     WriteControlMsgResp(resp_fd, &UCallResp::ExecProcessResp(tid as i32), true);
-        
-    //     //encrypt session and encode it to proper format
-    //     let encoded_session: Vec<u8> = postcard::to_allocvec(&session).unwrap();
-    //     let encrypted_session = prepareEncodedIoFrame(&encoded_session[..], &self.decryption_key).unwrap();
-
-
-    //     // write session to stdout
-    //     let mut buf= DataBuff::New(encrypted_session.len());
-    //     buf.buf = encrypted_session;
-    //     let iovs = buf.Iovs(buf.Len());
-    //     let ret = IOWrite(exec_stdfds[1], &iovs).unwrap();
-    //     assert!(ret == buf.Len() as i64);
-
-    //     // notify the shim that the session allocation exec request is finished 
-    //     WriteWaitAllResponse(container_id, exec_id, 0);
-
-    //     // free curent task in the waitfn context
-    //     CPULocal::SetPendingFreeStack(Task::Current().taskId);
-    //     SwitchToNewTask();
-    // }
-    
 }
 
 

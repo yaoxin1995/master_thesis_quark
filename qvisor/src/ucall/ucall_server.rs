@@ -54,7 +54,6 @@ pub fn ExecProcessHandler(execArgs: &mut ExecArgs, fds: &[i32]) -> Result<Contro
     let mut process = loader::Process::default();
     process.ID = execArgs.ContainerID.to_string();
     process.Cwd = execArgs.WorkDir.to_string();
-    process.Args.append(&mut execArgs.Argv);
     process.Envs.append(&mut execArgs.Envv);
     process.UID = execArgs.KUID.0;
     process.GID = execArgs.KGID.0;
@@ -155,13 +154,8 @@ pub fn StartSubContainerHandler(args: &mut StartArgs) -> Result<ControlMsg> {
     return Ok(msg);
 }
 
-pub fn IsOneShotCmdAllowedHandler (args: &mut OneShotCmdArgs) -> Result<ControlMsg> {
-    let msg = ControlMsg::New(Payload::IsOneShotCmdAllowed(args.clone()));
-    return Ok(msg);
-}
-
-pub fn IsTerminalAllowedHandler () -> Result<ControlMsg> {
-    let msg = ControlMsg::New(Payload::IsTerminalAllowed);
+pub fn ExecAthenAcCheckHandler (args: &mut ExecAuthenAcCheckArgs) -> Result<ControlMsg> {
+    let msg = ControlMsg::New(Payload::ExecAthenAcCheck(args.clone()));
     return Ok(msg);
 }
 
@@ -197,8 +191,7 @@ pub fn ProcessReqHandler(req: &mut UCallReq, fds: &[i32]) -> Result<ControlMsg> 
         UCallReq::CreateSubContainer(args) => CreateSubContainerHandler(args, fds)?,
         UCallReq::StartSubContainer(args) => StartSubContainerHandler(args)?,
         UCallReq::WaitAll => WaitAll()?,
-        UCallReq::IsOneShotCmdAllowed(args) => IsOneShotCmdAllowedHandler(args)?,
-        UCallReq::IsTerminalAllowed => IsTerminalAllowedHandler()?,
+        UCallReq::ExecAthenAcCheck(args) => ExecAthenAcCheckHandler(args)?,
         UCallReq::ProcessIncommingTerminalIoFrame(args) => ProcessTerminalStdinIo(args, fds)?
     };
 

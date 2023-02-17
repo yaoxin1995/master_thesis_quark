@@ -21,6 +21,7 @@ use super::auth::id::*;
 use super::loader::*;
 use super::singleton::*;
 
+use super::shield_policy::*;
 
 type Cid = String;
 
@@ -104,12 +105,16 @@ pub struct StartArgs {
     pub process: Process,
 }
 
+
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct OneShotCmdArgs {
+pub struct ExecAuthenAcCheckArgs {
+    pub exec_id: String,
     pub args: Vec<String>,
     pub env: Vec<String>,
     pub cwd: String,
+    pub req_type: ExecRequestType,
 }
+
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct TermianlIoArgs {
     // the container ID that the exec process belongs to
@@ -143,8 +148,7 @@ pub enum Payload {
     CreateSubContainer(CreateArgs),
     StartSubContainer(StartArgs),
     WaitAll,
-    IsTerminalAllowed,
-    IsOneShotCmdAllowed(OneShotCmdArgs),
+    ExecAthenAcCheck(ExecAuthenAcCheckArgs),
     ProcessIncommingTerminalIoFrame(TermianlIoArgs),
 }
 
@@ -179,8 +183,7 @@ pub enum UCallResp {
     CreateSubContainerResp,
     StartSubContainerResp,
     WaitAllResp(WaitAllResp),
-    IsTerminalAllowedResp(bool),
-    IsOneShotCmdAllowedResp(bool),
+    ExecAthenAcCheckResp(bool),
     ProcessIncommingTerminalIoFrameResp(i64),
     ErrorResp,
 }

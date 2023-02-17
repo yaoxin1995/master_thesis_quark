@@ -574,7 +574,7 @@ pub extern "C" fn rust_main(
 }
 
 fn StartExecProcess(fd: i32, process: Process) -> ! {
-    let (tid, entry, userStackAddr, kernelStackAddr) = { LOADER.ExecProcess(process).unwrap() };
+    let (tid, entry, userStackAddr, kernelStackAddr) = { LOADER.ExecProcess(process, fd).unwrap() };
 
     {
         WriteControlMsgResp(fd, &UCallResp::ExecProcessResp(tid), true);

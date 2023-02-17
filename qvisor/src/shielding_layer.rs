@@ -19,26 +19,31 @@ use super::qlib::linux_def::*;
 use super::qlib::kernel::task::*;
 use super::qlib::kernel::{SHARESPACE, IOURING, fd::*, boot::controller::HandleSignal};
 
+use sha2::{Sha256};
+use hmac::{Hmac, Mac};
+use base64ct::{Base64, Encoding};
+
 
 
 
 /*********************************************************************************************************************************************************
-    The functions in this file will not be called, we keep this file just to make the qvisor binary file compile successfully. 
+    The functions in this file will never be called, we keep this file just to make the qvisor binary file compile successfully. 
     For the shielding layer implementation, please view the the file in dir qkernel/src/shiedling_layer_rs
 **********************************************************************************************************************************************************/
 
 lazy_static! {
     pub static ref TERMINAL_SHIELD:  RwLock<TerminalShield> = RwLock::new(TerminalShield::default());
     pub static ref INODE_TRACKER:  RwLock<InodeTracker> = RwLock::new(InodeTracker::default());
-    pub static ref EXEC_ACCESS_CONTROL:  RwLock<ExecAccessControl> = RwLock::new(ExecAccessControl::default());
+    pub static ref EXEC_AUTH_AC:  RwLock<ExecAthentityAcChekcer> = RwLock::new(ExecAthentityAcChekcer::default());
     pub static ref STDOUT_EXEC_RESULT_SHIELD:  RwLock<StdoutExecResultShiled> = RwLock::new(StdoutExecResultShiled::default());
 }
 
 
 
-
 pub fn init_shielding_layer (policy: Option<&Policy>) ->() {
+
     const KEY_SLICE: &[u8; 32] = b"a very simple secret key to use!";
+
     let encryption_key = Key::<Aes256Gcm>::from_slice(KEY_SLICE).clone();
     let policy = policy.unwrap();
 
@@ -49,13 +54,14 @@ pub fn init_shielding_layer (policy: Option<&Policy>) ->() {
     let mut inode_tracker = INODE_TRACKER.write();
     inode_tracker.init();
 
-    let mut exec_access_control = EXEC_ACCESS_CONTROL.write();
-    exec_access_control.init(policy);
+    let mut exec_access_control = EXEC_AUTH_AC.write();
+    exec_access_control.init(&KEY_SLICE.to_vec(), &encryption_key, policy);
 
     let mut stdout_exec_result_shield = STDOUT_EXEC_RESULT_SHIELD.write();
     stdout_exec_result_shield.init(policy, &encryption_key);
 
 }
+
 
 /************************************Encryption, Decryption, Encoding, Decoding Untilities****************************************************************/
     
@@ -207,7 +213,8 @@ impl InodeTracker {
 }
 
 
-/*******************************************Container STDOUT/ Exec RESULT Shield / Policy Encforcement Point ************************************************************************************************* */
+
+/********************************Container STDOUT/ Exec RESULT Shield / Policy Encforcement Point ************************************ */
 #[derive(Debug, Default)]
 pub struct StdoutExecResultShiled {
     policy: Policy,
@@ -225,14 +232,36 @@ impl StdoutExecResultShiled{
     }
 
 
-    pub fn encryptContainerStdouterr (&self, src: DataBuff) -> DataBuff {
+    pub fn encryptContainerStdouterr (&self, src: DataBuff, user_type: Option<UserType>, stdio_type: StdioType) -> DataBuff {
 
-        if self.policy.debug_mode_opt.disable_container_logs_encryption {
+        // case 0: if this is a unprivileged exec req in single cmd mode
+        if user_type.is_some() && user_type.as_ref().unwrap().eq(&UserType::Unprivileged) && stdio_type ==  StdioType::ExecProcessStdio {
             return src;
         }
 
-        let rawData= src.buf.clone();
+        match stdio_type {
+            // case 1: if this is subcontainer stdout / stderr
+            StdioType::ContaienrStdio => {
+                if self.policy.privileged_user_config.enable_container_logs_encryption == false {
+                    return src;
+                }
+            },
+            // case 2: if this is a privileged exec req in single cmd mode
+            StdioType::ExecProcessStdio => {
+                if self.policy.privileged_user_config.exec_result_encryption == false {
+                    return src;
+                }
+            },
+            // case 1: if this is root container stdout / stderr
+            StdioType::SandboxStdio => {
+                return src;
+            }
+            StdioType::SessionAllocationStdio(ref _s) => {
+                return src;
+            }
+        }
 
+        let rawData= src.buf.clone();
         let encodedOutBoundDate = prepareEncodedIoFrame(rawData.as_slice(), &self.key).unwrap();
         assert!(encodedOutBoundDate.len() != 0);
 
@@ -249,184 +278,380 @@ impl StdoutExecResultShiled{
 
     }
 
-    pub fn isStdoutEncryptionEnabled (&self) -> bool {
+}
 
-        return !self.policy.debug_mode_opt.disable_container_logs_encryption;
 
+/***********************************************Exec Authentication and Access Control************************************************* */
+
+const PRIVILEGE_KEYWORD_INDEX: usize = 0;
+const HMAC_INDEX: usize = 1;
+const ENCRYPTED_MESSAGE_INDEX: usize = 2;
+const NONCE_INDEX: usize = 3;
+const PRIVILEGE_KEYWORD: &str = "Privileged ";
+const SESSION_ALLOCATION_REQUEST: &str = "Login";
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+pub struct ExecSession {
+    session_id: u32,
+    counter: u32,
+}
+
+
+pub fn verify_hmac (key_slice : &[u8], message: &String, base64_encoded_code: &String) -> bool {
+    type HmacSha256 = Hmac<Sha256>;
+    let mut mac : HmacSha256 = hmac::Mac::new_from_slice(key_slice).expect("HMAC can take key of any size");
+    mac.update(message.as_bytes());
+
+
+    let code_bytes = Base64::decode_vec(base64_encoded_code).unwrap();
+
+    let res = mac.verify_slice(&code_bytes[..]);
+
+    if res.is_ok() {
+        return true;
+    } else {
+        return false;
     }
 }
 
+/**
+ * Privilege request format:
+ * *********************** * *********************** ************************
+ *         Privileged     /    hmac(Privileged|cmd|args)     /  encrypted cmd + args / tag
+ * ************************ ************************************************                    
+ */
+pub fn verify_privileged_exec_cmd(privileged_cmd: &mut Vec<String>, key_slice: &[u8], key: &GenericArray<u8, U32>) -> Result<Vec<String>>  {
+
+    assert!(privileged_cmd.len() > 2);
+
+    if privileged_cmd.len() != 4 {
+        return  Err(Error::Common(format!("the privileged_cmd len is 4, len  {:?}, privileged_cmd verification failed", privileged_cmd.len())));
+    }
 
 
-/***********************************************Exec Access Control***************************************************** */
-#[derive(Debug, Default)]
-pub struct ExecAccessControl {
-    policy: Policy,
+    let base64_encrypted_cmd = privileged_cmd.get(ENCRYPTED_MESSAGE_INDEX).unwrap();
+    let base64_nonce = privileged_cmd.get(NONCE_INDEX).unwrap();
+
+    let nonce_bytes = Base64::decode_vec(base64_nonce)
+    .map_err(|e| Error::Common(format!("failed to decode the nonce, the error is {:?}, privileged_cmd verification failed", e)))?;
+
+    let encrypted_cmd_bytes = Base64::decode_vec(base64_encrypted_cmd)
+    .map_err(|e| Error::Common(format!("failed to decode the nonce, the error is {:?}, privileged_cmd verification failed", e)))?;
+
+    let decrypted_cmd = decrypt(encrypted_cmd_bytes.as_slice(), nonce_bytes.as_slice(), key)
+    .map_err(|e| Error::Common(format!("failed to decrypted the cmd message, the error is {:?}, privileged_cmd verification failed", e)))?;
+
+    let cmd_string = String::from_utf8(decrypted_cmd)
+    .map_err(|e| Error::Common(format!("failed to turn the cmd from bytes to string, the error is {:?}, privileged_cmd verification failed", e)))?;
+
+    let mut hmac_message = privileged_cmd.get(PRIVILEGE_KEYWORD_INDEX).unwrap().clone();
+    hmac_message.push_str(&cmd_string);
+
+    let base64_hmac = privileged_cmd.get(HMAC_INDEX).unwrap();
+
+    let hmac_verify_res = verify_hmac(key_slice, &hmac_message, base64_hmac);
+    if hmac_verify_res == false {
+        return Err(Error::Common(format!("hmac verification failed, privileged_cmd verification failed")));
+    }
+
+    let split = cmd_string.split_whitespace();
+    let cmd_list = split.collect::<Vec<&str>>().iter().map(|&s| s.to_string()).collect::<Vec<String>>();
+
+    return Ok(cmd_list);
 }
 
-impl ExecAccessControl {
+#[derive(Debug, Default)]
+pub struct ExecAthentityAcChekcer {
+    policy: Policy,
+    pub hmac_key_slice: Vec<u8>,
+    pub decryption_key: GenericArray<u8, U32>,
+    pub authenticated_reqs: BTreeMap<String, AuthenticatedExecReq>
+}
 
-        
-    pub fn init(&mut self, policy: &Policy) -> () {
-    
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+pub enum UserType {
+    Privileged,  // define a white list
+    #[default]
+    Unprivileged,  // define a black list
+}
+
+
+#[derive(Debug, Default)]
+pub struct AuthenticatedExecReq {
+    pub exec_id: String,
+    pub args: Vec<String>,  // args in plaintext
+    pub env: Vec<String>,
+    pub cwd: String,
+    pub exec_type: ExecRequestType,
+    pub user_type: UserType,
+}
+
+impl ExecAthentityAcChekcer{
+    pub fn init(&mut self, hmac_key_slice: &Vec<u8>, decryption_key: &GenericArray<u8, U32>, policy: &Policy) -> () {
+        self.authenticated_reqs= BTreeMap::new();
+        self.hmac_key_slice = hmac_key_slice.clone();
+        self.decryption_key = decryption_key.clone();
         self.policy = policy.clone();
     }
-    
 
+    pub fn exec_req_authentication (&mut self, exec_req: ExecAuthenAcCheckArgs) -> bool {
 
-    pub fn terminalEndpointerCheck (&self) -> bool {
-
-        self.policy.debug_mode_opt.enable_terminal
-
-    }
-
-    /*
-    TODO: 
-        1. Pass credential of role to quark
-        2. Encrypt the args on client side and decrypt them here
-        3. Validate the credential with the help of KBS
-        4. Chose the policy based on Role
-     */
-    pub fn singleShotCommandLineModeCheck (&self, oneShotCmdArgs: OneShotCmdArgs) -> bool {
-
-
-        if self.policy.debug_mode_opt.single_shot_command_line_mode == false ||  oneShotCmdArgs.args.len() == 0 {
+        if exec_req.args.len() < 1 {
             return false;
         }
 
-        let isCmdAllowed = self.isCmdAllowed(&Role::Host, &oneShotCmdArgs.args);
-
-
-        // For now the path can only identify 3 type of path : abs path, relative path including "/" or "."
-        // isPathAllowed can't identify the path such as "usr", "var" etc.
-        // therefore,  ls usr, ls var will be allowd even though "var" and "usr" are not in the allowd dir
-        // Todo: identify more dir type from args
-        let isPathAllowd = self.isPathAllowed(&Role::Host, &oneShotCmdArgs.args, &oneShotCmdArgs.cwd);
-
-        return isCmdAllowed & isPathAllowd;
+        match exec_req.args.get(PRIVILEGE_KEYWORD_INDEX).unwrap().as_str() {
+            PRIVILEGE_KEYWORD => return self.verify_privileged_req(exec_req),
+            _ => return self.verify_unprivileged_req(exec_req),
+        }
     }
 
-    fn isCmdAllowed (&self, role: &Role, reqArgs: &Vec<String>) ->bool {
-        if reqArgs.len() <= 0 {
-            return false;
-        }
-        
-        let reqCmd = reqArgs.get(0).unwrap();
 
-        for conf in &self.policy.single_shot_command_line_mode_configs {
+    fn verify_privileged_req (&mut self, exec_req_args: ExecAuthenAcCheckArgs) -> bool {
 
-            if &conf.role == role {
-                for cmd in &conf.allowed_cmd {
-                    if reqCmd.eq(cmd) {
-                        return true;
-                    }
-
-                }
+        // Hmac authentication
+        let mut privileged_cmd = exec_req_args.args.clone();
+        let cmd_in_plain_text = match verify_privileged_exec_cmd(&mut privileged_cmd, &self.hmac_key_slice, &self.decryption_key) {
+            Ok(args) => args,
+            Err(_e) => {
                 return false;
             }
+        };
+
+        // Session allocation request
+        let exec_req_args = exec_req_args.clone();
+
+        //TODO Access Control
+        match exec_req_args.req_type {
+            ExecRequestType::Terminal => {
+                let res = self.check_terminal_access_control (UserType::Privileged);
+
+                if res == false {
+                    return false;
+                }
+
+            },
+            ExecRequestType::SingleShotCmdMode =>{
+                let allowed_cmd = &self.policy.privileged_user_config.single_shot_command_line_mode_configs.allowed_cmd;
+                let allowed_path = &self.policy.privileged_user_config.single_shot_command_line_mode_configs.allowed_dir;
+                let res = self.check_oneshot_cmd_mode_access_control(UserType::Privileged, &cmd_in_plain_text, allowed_cmd, allowed_path, &exec_req_args.cwd);
+                if res == false {
+                    return false;
+                }
+            },
+            ExecRequestType::SessionAllocationReq(ref _s) => {
+
+            }
+            
         }
-        false
+
+        let exec_req = AuthenticatedExecReq {
+            exec_id : exec_req_args.exec_id.clone(),
+            args: cmd_in_plain_text,
+            env: exec_req_args.env.clone(),
+            cwd: exec_req_args.cwd.clone(),
+            user_type: UserType::Privileged,
+            exec_type:exec_req_args.req_type.clone()
+        };
+
+        self.authenticated_reqs.insert(exec_req_args.exec_id, exec_req);
+
+        return true;
     }
 
-    fn isPathAllowed (&self, role: &Role, reqArgs: &Vec<String>, cwd: &str) -> bool {
-
-        if reqArgs.len() == 1 {
-
-            let subpaths = vec![cwd.to_string()];
-            let allowedPaths= self.findAllowedPath(role);
-
-            let isAllowed = self.IsSubpathCheck (subpaths, allowedPaths);
+    fn verify_unprivileged_req (&mut self, exec_req_args: ExecAuthenAcCheckArgs) -> bool {
 
 
-            return isAllowed;
+        let cmd_in_plain_text = &exec_req_args.args;
+        match exec_req_args.req_type {
+            ExecRequestType::Terminal => {
+                let res = self.check_terminal_access_control (UserType::Unprivileged);
 
+                if res == false {
+                    return false;
+                }
 
+            },
+            ExecRequestType::SingleShotCmdMode =>{
+                let allowed_cmd = &self.policy.unprivileged_user_config.single_shot_command_line_mode_configs.allowed_cmd;
+                let allowed_path = &self.policy.unprivileged_user_config.single_shot_command_line_mode_configs.allowed_dir;
+                let res = self.check_oneshot_cmd_mode_access_control(UserType::Unprivileged, &cmd_in_plain_text, allowed_cmd, allowed_path, &exec_req_args.cwd);
+                if res == false {
+                    return false;
+                }
+            },
+            _ => return false,            
         }
-        let mut absPaths = Vec::new();
-        let mut relPaths = Vec::new();
-        //collect all path like structure including abs path, relative path, files (a.s)
 
-        for e in reqArgs[1..].iter() {
-            if e.len() > 0 && e.as_bytes()[0] == '-' as u8 {
+        let exec_req = AuthenticatedExecReq {
+            exec_id : exec_req_args.exec_id.clone(),
+            args: cmd_in_plain_text.clone(),
+            env: exec_req_args.env.clone(),
+            cwd: exec_req_args.cwd.clone(),
+            user_type: UserType::Unprivileged,
+            exec_type:exec_req_args.req_type.clone()
+        };
+
+        self.authenticated_reqs.insert(exec_req_args.exec_id, exec_req);
+
+        return true;
+    }
+
+
+    fn check_terminal_access_control (&self, user_type: UserType) -> bool {
+
+        match user_type {
+            UserType::Privileged => {
+                return self.policy.privileged_user_config.enable_terminal;
+            },
+            UserType::Unprivileged => {
+                return self.policy.unprivileged_user_config.enable_terminal;
+            }
+        }
+    }
+
+
+    fn check_oneshot_cmd_mode_access_control (&self, user_type: UserType, cmd : &Vec<String>, allowed_cmds: &Vec<String>, allowed_pathes: &Vec<String>, cwd: &String) -> bool {
+
+        let is_sigle_shot_cmd_enabled = match user_type {
+            UserType::Privileged => {
+                self.policy.privileged_user_config.enable_single_shot_command_line_mode
+            },
+            UserType::Unprivileged => {
+                self.policy.unprivileged_user_config.enable_single_shot_command_line_mode
+            }
+        };
+        if is_sigle_shot_cmd_enabled == false {
+            return false;
+        }
+       
+        let is_cmd_path_allowed = single_shot_cmd_check(cmd, allowed_cmds, allowed_pathes, cwd);
+
+        return is_cmd_path_allowed;
+    }
+    
+}
+
+
+pub fn single_shot_cmd_check (cmd_args: &Vec<String>,  allowed_cmds: &Vec<String>, allowed_dir: &Vec<String>, cwd: &String) -> bool {
+
+    if cmd_args.len() == 0 {
+        return false;
+    }
+
+    let cmd = cmd_args.get(0).unwrap();
+
+    let is_cmd_allowed = is_cmd_allowed(cmd, allowed_cmds);
+    if is_cmd_allowed == false {
+        return false;
+    }
+
+    // For now the path can only identify 3 type of path : abs path, relative path including "/" or "."
+    // isPathAllowed can't identify the path such as "usr", "var" etc.
+    // therefore,  ls usr, ls var will be allowd even though "var" and "usr" are not in the allowd dir
+    // Todo: identify more dir type from args
+    let isPathAllowd = is_path_allowed(cmd_args, &allowed_dir, cwd);
+
+    return isPathAllowd;
+}
+
+fn is_cmd_allowed (cmd: &String, allowed_cmd_list: &Vec<String>) ->bool {
+
+    if allowed_cmd_list.len() == 0 {
+        return false;
+    }
+
+
+    for cmd_in_allowed_list in allowed_cmd_list {
+
+        if cmd_in_allowed_list.eq(cmd) {
+            return true;
+        }
+    }
+    return false;
+}
+
+fn is_path_allowed (cmd: &Vec<String>, allowed_paths: &Vec<String>, cwd: &str) -> bool {
+
+    if cmd.len() == 1 {
+
+        let sub_paths = vec![cwd.to_string()];
+
+        let is_allowed = IsSubpathCheck(&sub_paths, allowed_paths);
+
+        return is_allowed;
+    }
+
+    let mut abs_paths = Vec::new();
+    let mut rel_paths = Vec::new();
+    //collect all path like structure including abs path, relative path, files (a.s)
+
+    for e in cmd[1..].iter() {
+        if e.len() > 0 && e.as_bytes()[0] == '-' as u8 {
+            continue;
+        }
+        if IsPath(e) {
+            let str = Clean(e);
+            if IsAbs(&str) {
+                abs_paths.push(str);
                 continue;
             }
-            if IsPath(e) {
+
+            if IsRel(e) {
                 let str = Clean(e);
-                if IsAbs(&str) {
-                    absPaths.push(str);
-                    continue;
-                }
-
-                if IsRel(e) {
-                    let str = Clean(e);
-                    relPaths.push(str);
-                    continue;
-                }
+                rel_paths.push(str);
+                continue;
             }
-
-
         }
 
-        // convert rel path to abs path
-        for relPath in relPaths {
-            let absPath = Join(cwd, &relPath);
-            absPaths.push(absPath);
-        }
-
-        let allowedPaths= self.findAllowedPath(role);
-
-        if allowedPaths.len() <= 0 {
-            return false;
-        }
-
-        let isAllowed = self.IsSubpathCheck (absPaths, allowedPaths);
-
-        return isAllowed;
-            
 
     }
 
-
-    fn findAllowedPath (&self,  role: &Role) -> Vec<String> {
-
-        let mut allowedPaths= &Vec::new();
-        for conf in &self.policy.single_shot_command_line_mode_configs {
-
-            if &conf.role == role {
-                allowedPaths = &conf.allowed_dir;
-            }
-        }
-
-        return allowedPaths.clone();
+    // convert rel path to abs path
+    for relPath in rel_paths {
+        let absPath = Join(cwd, &relPath);
+        abs_paths.push(absPath);
     }
 
-    fn IsSubpathCheck (&self, subPaths: Vec<String>, paths: Vec<String>) -> bool {
-
-        for absPath in subPaths {
-            
-            let mut isAllowd = false;
-            for  allowedPath in &paths {
-                if Clean(&absPath) == Clean(allowedPath) {
-                    isAllowd = true;
-                    break;
-                }
-
-                let (_, isSub) = IsSubpath(&absPath, &allowedPath);
-                if  isSub {
-                    isAllowd = true;
-                    break;
-                }
-            }
-            if !isAllowd {
-                return false;
-            }
-        }
-        true
-
+    if allowed_paths.len() <= 0 {
+        return false;
     }
 
+    let isAllowed = IsSubpathCheck (&abs_paths, allowed_paths);
+
+
+    return isAllowed;
+        
 
 }
+
+
+fn IsSubpathCheck (abs_paths_in_cmd: &Vec<String>, allowed_pathes: &Vec<String>) -> bool {
+
+    for absPath in abs_paths_in_cmd {
+            
+        let mut is_allowd = false;
+        for  allowed_path in allowed_pathes {
+            if Clean(&absPath) == Clean(allowed_path) {
+                is_allowd = true;
+                break;
+            }
+
+            let (_, isSub) = IsSubpath(&absPath, &allowed_path);
+            if  isSub {
+                is_allowd = true;
+                break;
+            }
+        }
+        if !is_allowd {
+            return false;
+        }
+    }
+    true
+
+}
+
 
 
 /******************************************Privileged User Terminal Shield****************************************************************** */

@@ -443,10 +443,6 @@ impl Sandbox {
             extraKGIDs.push(KGID(*gid))
         }
 
-        let mut argv = Vec::new();
-        for args in &process.args {
-            argv.push(args.clone())
-        }
 
         let mut envv = Vec::new();
         for env in &process.env {
@@ -459,7 +455,6 @@ impl Sandbox {
         }
 
         let args = ExecArgs {
-            Argv: argv,
             Envv: envv,
             Root: "".to_string(),
             WorkDir: process.cwd.to_string(),
@@ -473,6 +468,7 @@ impl Sandbox {
             ConsoleSocket: "".to_string(),
             ExecId: execId.to_string(),
             Fds: fds,
+            ..Default::default()
         };
 
         let client = self.SandboxConnect()?;

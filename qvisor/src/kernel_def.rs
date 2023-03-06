@@ -34,6 +34,7 @@ use super::URING_MGR;
 use super::VMS;
 
 use super::POLICY;
+use super::qlib::kernel::sev_guest::*;
 
 impl std::error::Error for Error {}
 
@@ -111,6 +112,8 @@ impl ShareSpace {
     ) {
         *self.config.write() = *QUARK_CONFIG.lock();
         *self.k8s_policy.write() = POLICY.lock().clone();
+        *self.sev_snp_secret_page.write() = SnpSecretsPageLayout::default();
+        
         let mut values = Vec::with_capacity(vcpuCount);
         for _i in 0..vcpuCount {
             values.push([AtomicU64::new(0), AtomicU64::new(0)])

@@ -1,19 +1,19 @@
-use aes_gcm::aead::rand_core::RngCore;
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use alloc::collections::btree_map::BTreeMap;
 use spin::rwlock::RwLock;
+use crate::aes_gcm::{
+    aead::{Aead, KeyInit, OsRng, generic_array::{GenericArray, typenum::U32}, rand_core::RngCore},
+    Aes256Gcm, Nonce, // Or `Aes128Gcm`
+    Key,
+};
 
 use qlib::control_msg::*;
 use qlib::path::*;
 use qlib::common::*;
 use qlib::shield_policy::*;
-use crate::aes_gcm::{
-    aead::{Aead, KeyInit, OsRng, generic_array::{GenericArray, typenum::U32}},
-    Aes256Gcm, Nonce, // Or `Aes128Gcm`
-    Key,
-};
+
 
 use super::qlib::linux_def::*;
 use super::qlib::kernel::task::*;
@@ -21,6 +21,7 @@ use super::qlib::kernel::{SHARESPACE, IOURING, fd::*, boot::controller::HandleSi
 use sha2::{Sha256};
 use hmac::{Hmac, Mac};
 use base64ct::{Base64, Encoding};
+use crate::qlib::kernel::sev_guest::*;
 
 lazy_static! {
     pub static ref TERMINAL_SHIELD:  RwLock<TerminalShield> = RwLock::new(TerminalShield::default());
@@ -53,7 +54,9 @@ pub struct PayLoad {
 
 pub fn init_shielding_layer (policy: Option<&Policy>) ->() {
 
+    // TODO: Use KEY_SLICE and DEDAULT_VMPK sent from secure client
     const KEY_SLICE: &[u8; 32] = b"a very simple secret key to use!";
+    const DEDAULT_VMPK: u32 = 0;
 
 
     info!("init_shielding_layer default policy:{:?}" ,policy);
@@ -75,6 +78,11 @@ pub fn init_shielding_layer (policy: Option<&Policy>) ->() {
     let mut stdout_exec_result_shield = STDOUT_EXEC_RESULT_SHIELD.write();
     stdout_exec_result_shield.init(policy, &encryption_key);
 
+
+    // init sev guest driver
+    GUEST_SEV_DEV.write().init(0);
+
+    
 }
 
 /************************************Encryption, Decryption, Encoding, Decoding Untilities****************************/

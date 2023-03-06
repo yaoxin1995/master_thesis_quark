@@ -25,4 +25,5 @@ install:
 	sudo mkdir -p /etc/quark/
 	sudo cp -f ./config.json /etc/quark/
 	sudo cp -f ./policy.json /etc/quark/
+	sudo cp -f ./sev_snp_guest_attestation_report.bin /etc/quark/      
 

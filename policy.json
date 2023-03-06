@@ -3,7 +3,7 @@
         "enable_terminal": true,
         "enable_single_shot_command_line_mode": true,
         "single_shot_command_line_mode_configs" : {
-            "allowed_cmd": ["cat", "ls", "cd"],
+            "allowed_cmd": ["cat", "ls", "cd", "mkdir"],
             "allowed_dir": ["/"]
         },
         "exec_result_encryption":true,

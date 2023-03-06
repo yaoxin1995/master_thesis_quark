@@ -21,6 +21,7 @@ use super::super::super::qlib::common::*;
 use super::super::cmd::config::*;
 use super::super::runtime::sandbox_process::*;
 use super::command::*;
+use crate::MOCK_ATTESTAION_REPORT;
 
 #[derive(Debug)]
 pub struct BootCmd {
@@ -54,6 +55,12 @@ impl BootCmd {
 
     pub fn Run(&self, _gCfg: &GlobalConfig) -> Result<()> {
         let pipefile = unsafe { File::from_raw_fd(self.pipefd) };
+
+        {
+            let _report = MOCK_ATTESTAION_REPORT.lock();
+
+            info!("Run, attestation report {:?}", _report)
+        }
 
         let process: SandboxProcess = serde_json::from_reader(&pipefile)
             .map_err(|e| Error::IOError(format!("BootCmd io::error is {:?}", e)))?;

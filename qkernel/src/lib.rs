@@ -60,6 +60,9 @@ extern crate hashbrown;
 
 extern crate enum_dispatch;
 
+extern crate modular_bitfield;
+// extern crate sev;
+
 // extern crate aes_gcm_siv;
 // use aes_gcm_siv::{
 //     aead::{Aead, KeyInit, OsRng},
@@ -147,6 +150,7 @@ use self::quring::*;
 //use self::heap::QAllocator;
 //use qlib::mem::bitmap_allocator::BitmapAllocatorWrapper;
 // use shielding_layer::*;
+use self::qlib::kernel::sev_guest::*;
 
 
 pub const HEAP_START: usize = 0x70_2000_0000;
@@ -589,6 +593,8 @@ fn StartExecProcess(fd: i32, process: Process) -> ! {
 fn StartSubContainerProcess(elfEntry: u64, userStackAddr: u64, kernelStackAddr: u64) -> ! {
     let currTask = Task::Current();
     currTask.AccountTaskEnter(SchedState::RunningApp);
+
+    GUEST_SEV_DEV.write().get_report();
 
     EnterUser(elfEntry, userStackAddr, kernelStackAddr);
 }

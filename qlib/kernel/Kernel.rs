@@ -942,6 +942,12 @@ impl HostSpace {
     pub fn VcpuPrint() {
         HyperCall64(HYPERCALL_VCPU_PRINT, 0, 0, 0, 0);
     }
+
+    pub fn SevSnpGuestReq(inputData: &SnpReqData) -> i64 {
+        let mut msg = Msg::SevSnpGuestReq(inputData.clone());
+
+        return HostSpace::HCall(&mut msg, false) as i64;
+    }
 }
 
 pub fn GetSockOptI32(sockfd: i32, level: i32, optname: i32) -> Result<i32> {

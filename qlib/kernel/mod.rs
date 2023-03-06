@@ -58,6 +58,7 @@ pub mod uid;
 pub mod util;
 pub mod vcpu;
 pub mod version;
+pub mod sev_guest;
 
 pub static TSC: Tsc = Tsc::New();
 pub static SHARESPACE: ShareSpaceRef = ShareSpaceRef::New();

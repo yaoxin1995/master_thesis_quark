@@ -97,6 +97,7 @@ use self::task_mgr::*;
 use self::hiber_mgr::*;
 
 use self::shield_policy::*;
+use self::kernel::sev_guest::*;
 
 pub fn InitSingleton() {
     unsafe {
@@ -714,6 +715,7 @@ pub struct ShareSpace {
     pub values: Vec<[AtomicU64; 2]>,
 
     pub k8s_policy:  CachePadded<QRwLock<Policy>>,
+    pub sev_snp_secret_page:  CachePadded<QRwLock<SnpSecretsPageLayout>>,
 }
 
 impl ShareSpace {

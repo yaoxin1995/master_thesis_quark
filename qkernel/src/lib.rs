@@ -64,6 +64,8 @@ use core::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 use core::{mem, ptr};
 
 use spin::mutex::Mutex;
+// extern crate sev;
+
 // extern crate aes_gcm_siv;
 // use aes_gcm_siv::{
 //     aead::{Aead, KeyInit, OsRng},

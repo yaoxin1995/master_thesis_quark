@@ -1,6 +1,6 @@
 // use core::slice::SlicePattern;
 
-use crate::modular_bitfield::{self, bitfield, specifiers::{B1, B31}};
+use crate::modular_bitfield::{bitfield, specifiers::{B1, B31}};
 use crate::aes_gcm::{
     aead::{Aead, KeyInit, OsRng, rand_core::RngCore},
     Aes256Gcm, Nonce, // Or `Aes128Gcm`

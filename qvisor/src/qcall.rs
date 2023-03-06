@@ -19,6 +19,7 @@ use super::qlib::qmsg::*;
 use super::qlib::range::*;
 use super::qlib::ShareSpace;
 use super::*;
+use super::runc::runtime::amd_sev_host::*;
 
 pub fn AQHostCall(msg: HostOutputMsg, _shareSpace: &ShareSpace) {
     let _l = super::GLOCK.lock();
@@ -395,6 +396,14 @@ impl KVMVcpu {
             }
             Msg::HostMemoryBarrier(_) => {
                 VMSpace::HostMemoryBarrier();
+            }
+            Msg::SevSnpGuestReq(msg) => {
+
+                amd_firmware_emulation(msg);
+
+                info!("SevSnpGuestReq done");
+
+                ret = 0;
             }
         };
 

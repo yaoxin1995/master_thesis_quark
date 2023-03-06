@@ -42,6 +42,7 @@ use crate::qlib::linux::signal::*;
 use super::super::super::super::kernel_def::*;
 
 use super::super::super::super::shielding_layer::*;
+use crate::qlib::kernel::sev_guest::*;
 
 
 
@@ -256,6 +257,10 @@ pub fn ControlMsgHandler(fd: *const u8) {
             let is_allowd;
             {
                         is_allowd = EXEC_AUTH_AC.write().exec_req_authentication(AuthAcCheckArgs);
+                        let report = GUEST_SEV_DEV.write().get_report();
+                        info!("Payload::ExecAthenAcCheck,  got report {:?}", report);
+
+                        
             }
             WriteControlMsgResp(fd, &&UCallResp::ExecAthenAcCheckResp(is_allowd), true);
         }

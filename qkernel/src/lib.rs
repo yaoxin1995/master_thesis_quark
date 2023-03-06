@@ -57,6 +57,8 @@ extern crate x86_64;
 extern crate xmas_elf;
 extern crate log;
 
+extern crate modular_bitfield;
+
 use core::panic::PanicInfo;
 use core::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 use core::{mem, ptr};
@@ -153,6 +155,7 @@ mod syscalls;
 //use self::heap::QAllocator;
 //use qlib::mem::bitmap_allocator::BitmapAllocatorWrapper;
 // use shielding_layer::*;
+use self::qlib::kernel::sev_guest::*;
 
 
 //use buddy_system_allocator::*;
@@ -637,6 +640,8 @@ fn StartExecProcess(fd: i32, process: Process) -> ! {
 fn StartSubContainerProcess(elfEntry: u64, userStackAddr: u64, kernelStackAddr: u64) -> ! {
     let currTask = Task::Current();
     currTask.AccountTaskEnter(SchedState::RunningApp);
+
+    GUEST_SEV_DEV.write().get_report();
 
     EnterUser(elfEntry, userStackAddr, kernelStackAddr);
 }

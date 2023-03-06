@@ -297,6 +297,8 @@ impl VirtualMachine {
             .create_vm()
             .map_err(|e| Error::IOError(format!("io::error is {:?}", e)))?;
 
+        // Init SEV hardware see amd_sev_host for detail
+        
         let mut cap: kvm_enable_cap = Default::default();
         cap.cap = KVM_CAP_X86_DISABLE_EXITS;
         cap.args[0] = (KVM_X86_DISABLE_EXITS_HLT | KVM_X86_DISABLE_EXITS_MWAIT) as u64;

@@ -39,7 +39,6 @@ extern crate bitflags;
 extern crate cache_padded;
 extern crate crossbeam_queue;
 extern crate enum_dispatch;
-extern crate hashbrown;
 #[macro_use]
 extern crate lazy_static;
 
@@ -56,6 +55,8 @@ extern crate spin;
 extern crate x86_64;
 extern crate xmas_elf;
 extern crate log;
+
+
 
 extern crate modular_bitfield;
 

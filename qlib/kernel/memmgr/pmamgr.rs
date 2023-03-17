@@ -17,8 +17,6 @@ use alloc::vec::Vec;
 use core::sync::atomic::AtomicU64;
 use core::sync::atomic::Ordering;
 use spin::Mutex;
-//use hashbrown::HashMap;
-//use core::hash::BuildHasherDefault;
 //use cache_padded::CachePadded;
 
 use super::super::super::common::*;

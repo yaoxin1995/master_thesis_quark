@@ -17,8 +17,6 @@ use alloc::collections::btree_map::BTreeMap;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::ops::Bound::*;
-use hashbrown::HashMap;
-
 use super::super::super::common::*;
 use super::super::super::limits::*;
 use super::super::super::linux_def::*;
@@ -472,7 +470,7 @@ impl FDTable {
         let intern = self.data.lock();
         let mut tbl = FDTableInternal {
             gaps: intern.gaps.clone(),
-            descTbl: HashMap::new(),
+            descTbl: BTreeMap::new(),
         };
 
         for (fd, file) in &intern.descTbl {
@@ -503,7 +501,7 @@ impl FDTable {
 
 pub struct FDTableInternal {
     pub gaps: GapMgr,
-    pub descTbl: HashMap<i32, Descriptor>,
+    pub descTbl: BTreeMap<i32, Descriptor>,
 }
 
 impl Default for FDTableInternal {
@@ -516,7 +514,7 @@ impl FDTableInternal {
     pub fn New() -> Self {
         return Self {
             gaps: GapMgr::New(0, i32::MAX as u64),
-            descTbl: HashMap::new(),
+            descTbl: BTreeMap::new(),
         };
     }
 

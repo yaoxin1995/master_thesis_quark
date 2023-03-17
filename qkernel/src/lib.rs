@@ -56,7 +56,6 @@ extern crate x86_64;
 extern crate xmas_elf;
 #[macro_use]
 extern crate bitflags;
-extern crate hashbrown;
 
 extern crate enum_dispatch;
 

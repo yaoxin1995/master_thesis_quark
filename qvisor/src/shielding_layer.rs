@@ -911,4 +911,173 @@ impl TermianlIoShiled for TerminalShield {
 
 }
 
-    
+
+/******************************************Provisioning HTTPS Client****************************************************************** */
+use alloc::sync::Arc;
+
+use super::qlib::kernel::socket::socket::Provider;
+use super::qlib::kernel::socket::hostinet::hostsocket::newHostSocketFile;
+use super::qlib::kernel::fs::flags::SettableFileFlags;
+use super::qlib::kernel::Kernel;
+use super::qlib::kernel::fs::file::*;
+use super::qlib::kernel::tcpip::tcpip::*;
+
+const SECRET_MANAGER_IP:  [u8;4] = [10, 206, 133, 76];
+const SECRET_MANAGER_PORT: u16 = 8000;
+
+pub struct ShieldSocketProvider {
+    pub family: i32,
+}
+
+impl Provider for ShieldSocketProvider {
+    fn Socket(&self, task: &Task, stype: i32, protocol: i32) -> Result<Option<Arc<File>>> {
+        let nonblocking = stype & SocketFlags::SOCK_NONBLOCK != 0;
+        let stype = stype & SocketType::SOCK_TYPE_MASK;
+
+        let res =
+            Kernel::HostSpace::Socket(self.family, stype | SocketFlags::SOCK_CLOEXEC, protocol);
+        if res < 0 {
+            return Err(Error::SysError(-res as i32));
+        }
+
+        let fd = res as i32;
+
+        let file = newHostSocketFile(
+                task,
+                self.family,
+                fd,
+                stype & SocketType::SOCK_TYPE_MASK,
+                nonblocking,
+                None,
+            )?;
+
+        return Ok(Some(Arc::new(file)));
+    }
+
+    fn Pair(
+        &self,
+        _task: &Task,
+        _stype: i32,
+        _protocol: i32,
+    ) -> Result<Option<(Arc<File>, Arc<File>)>> {
+        return Err(Error::SysError(SysErr::EOPNOTSUPP));
+    }
+}
+
+
+/**
+ * ip: the ip of secret manager
+ * port: on which port the secret manager is listening on
+ * TODO: Get the ip and port of the secrect manager from container deployment yaml
+*/
+pub fn socket_connect(task: &Task, ip: [u8;4], port: u16) -> Result<Arc<File>> {
+
+
+    // get a qkernel socket file object, 
+    let family = AFType::AF_INET;  // ipv4
+    let socket_type = LibcConst::SOCK_STREAM as i32;
+    let protocol = 0;   
+    let ipv4_provider = ShieldSocketProvider { family: family};
+
+    let socket_file = ipv4_provider.Socket(task, socket_type, protocol).unwrap().unwrap();
+
+    let flags = SettableFileFlags {
+        NonBlocking: socket_type & Flags::O_NONBLOCK != 0,
+        ..Default::default()
+    };
+
+    socket_file.SetFlags(task, flags);
+
+    // connect to target ip:port, blocking is true
+    let blocking = !socket_file.Flags().NonBlocking;
+    assert!(blocking == true);
+    let socket_op = socket_file.FileOp.clone();
+
+    let sock_addr = SockAddr::Inet(SockAddrInet {
+        Family: AFType::AF_INET as u16,
+        Port: htons(SECRET_MANAGER_PORT),
+        Addr: SECRET_MANAGER_IP,
+        Zero: [0; 8],
+    });
+
+    let socket_addr_vec = sock_addr.ToVec().unwrap();
+
+    socket_op.Connect(task, socket_addr_vec.as_slice(), blocking)?;
+
+    return Ok(socket_file);
+
+
+}
+
+
+
+pub fn provisioning_http_client(task: &Task) -> Result<i64> {
+
+    const DEFAULT_GET_REQUEST: &[u8; 23] = b"GET /hello HTTP/1.1\r\n\r\n";
+
+    let connection_to_secret_manager = socket_connect(task, SECRET_MANAGER_IP, SECRET_MANAGER_PORT).unwrap();
+
+    let socket_op = connection_to_secret_manager.FileOp.clone();
+
+    let mut pMsg = MsgHdr::default();
+
+    // The msg_name and msg_namelen fields contain the address and address length to which the message is sent. 
+    // For further information about the structure of socket addresses, see the Sockets programming topic collection. 
+    // If the msg_name field is set to a NULL pointer, the address information is not returned.
+    pMsg.msgName = 0;
+    pMsg.nameLen = 0;
+
+    let mut deadline = None;
+    let mut flags = 0 as i32;
+
+
+
+    let mut req_buf = DataBuff::New(DEFAULT_GET_REQUEST.len());
+    req_buf.buf = DEFAULT_GET_REQUEST.to_vec();
+    let src = req_buf.Iovs(DEFAULT_GET_REQUEST.len());
+
+
+    let res = socket_op.SendMsg(task, &src, flags, &mut pMsg, deadline);
+    if res.is_err() {
+        info!("provisioning_http_client SendMsg get error  irte {:?} bytes data to tty", res);
+        return res;
+    }
+
+
+    let resp_buf =  DataBuff::New(4096);
+    let mut dst = resp_buf.Iovs(resp_buf.Len());
+    let mut bytes: i64 = -1;
+
+    loop {
+
+        let res = socket_op.RecvMsg(task, &mut dst, 0, deadline, false, 0);
+
+        if res.is_err() {
+
+            break;
+        }    
+
+        let (n, mut _mflags, _, _) = res.unwrap();
+
+        bytes = bytes + n;
+
+        // rust pointer arthmitic
+        let new_start_pointer;
+        unsafe {
+            new_start_pointer = resp_buf.buf.as_ptr().offset(bytes as isize);
+        }
+
+        let io_vec = IoVec {
+            start: new_start_pointer as u64,
+            len: resp_buf.Len() - bytes as usize,
+        };
+
+        dst = [io_vec];
+    }
+
+    assert!(bytes > 0);
+    let http_get_resp = String::from_utf8_lossy(&resp_buf.buf.as_slice()[..bytes as usize]).to_string();
+
+
+    Ok(bytes)
+}

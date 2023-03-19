@@ -60,6 +60,7 @@ extern crate bitflags;
 extern crate enum_dispatch;
 
 extern crate modular_bitfield;
+extern crate httparse;
 // extern crate sev;
 
 // extern crate aes_gcm_siv;

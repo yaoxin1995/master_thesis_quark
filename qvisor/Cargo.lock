@@ -2056,6 +2056,7 @@ dependencies = [
  "getrandom 0.2.5",
  "hex-literal",
  "hmac",
+ "httparse",
  "kvm-bindings",
  "kvm-ioctls",
  "lazy_static",

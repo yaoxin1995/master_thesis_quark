@@ -65,6 +65,7 @@ use core::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 use core::{mem, ptr};
 
 use spin::mutex::Mutex;
+extern crate httparse;
 // extern crate sev;
 
 // extern crate aes_gcm_siv;

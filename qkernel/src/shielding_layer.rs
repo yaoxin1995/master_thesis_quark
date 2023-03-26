@@ -22,7 +22,6 @@ use sha2::{Sha256};
 use hmac::{Hmac, Mac};
 use base64ct::{Base64, Encoding};
 use crate::qlib::kernel::sev_guest::*;
-// use log::{error, info, debug};
 
 lazy_static! {
     pub static ref TERMINAL_SHIELD:  RwLock<TerminalShield> = RwLock::new(TerminalShield::default());

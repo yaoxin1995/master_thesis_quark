@@ -14,15 +14,13 @@
 
 use crate::qlib::mutex::*;
 use crate::qlib::mem::stackvec::StackVec;
-//use alloc::collections::btree_map::BTreeMap;
+use alloc::collections::btree_map::BTreeMap;
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::sync::Arc;
 use core::any::Any;
 use core::ops::Deref;
-use hashbrown::HashMap;
-use hashbrown::hash_map::Entry;
-use core::hash::BuildHasherDefault;
+
 
 use super::super::super::super::common::*;
 use super::super::super::super::linux_def::*;
@@ -105,23 +103,15 @@ impl core::hash::Hasher for RawHasher {
 
 // EventPoll holds all the state associated with an event poll object, that is,
 // collection of files to observe and their current state.
+#[derive(Default)]
 pub struct EventPollInternal {
     pub queue: Queue,
-    pub files: QMutex<HashMap<FileIdentifier, PollEntry, BuildHasherDefault<RawHasher>>>,
+    pub files: QMutex<BTreeMap<FileIdentifier, PollEntry>>,
 
     pub lists: QMutex<PollEntryList>,
 }
 
-impl Default for EventPollInternal {
-    fn default() -> Self {
-        let hash_map = HashMap::<FileIdentifier, PollEntry, BuildHasherDefault<RawHasher>>::default();
-        return Self { 
-            queue: Queue::default(), 
-            files: QMutex::new(hash_map), 
-            lists: Default::default() 
-        }
-    }
-}
+
 
 // NewEventPoll allocates and initializes a new event poll object.
 pub fn NewEventPoll(task: &Task) -> File {
@@ -300,62 +290,60 @@ impl EventPoll {
         };
 
         let mut files = self.files.lock();
+        if files.contains_key(&id) {
+            return Err(Error::SysError(SysErr::EEXIST));
+        }
 
-        let entry = files.entry(id);
-        
-        match entry {
-            Entry::Occupied(_) => {
-                return Err(Error::SysError(SysErr::EEXIST));
+
+
+        // Check if a cycle would be created. We use 4 as the limit because
+        // that's the value used by linux and we want to emulate it.
+        if let Some(ep) = ep {
+            if ep == *self {
+                return Err(Error::SysError(SysErr::EINVAL));
             }
-            Entry::Vacant(e) => {
-                // Check if a cycle would be created. We use 4 as the limit because
-                // that's the value used by linux and we want to emulate it.
-                if let Some(ep) = ep {
-                    if ep == *self {
-                        return Err(Error::SysError(SysErr::EINVAL));
-                    }
 
-                    // Check if a cycle would be created. We use 4 as the limit because
-                    // that's the value used by linux and we want to emulate it.
-                    if ep.Observes(self, 4) {
-                        return Err(Error::SysError(SysErr::ELOOP));
-                    }
-                }
-
-                let waiter = WaitEntry::New();
-                // Create new entry and add it to map.
-                let entryInternal = PollEntryInternal {
-                    next: None,
-                    prev: None,
-                    id: id,
-                    file: file.Downgrade(),
-                    userData: data,
-                    waiter: waiter.Downgrade(),
-                    mask: mask,
-                    flags: flags,
-
-                    epoll: self.clone(),
-                    state: PollEntryState::Waiting,
-                };
-
-                let entry = PollEntry(Arc::new(QMutex::new(entryInternal)));
-                waiter.lock().context = WaitContext::EpollContext(entry.clone());
-                e.insert(entry.clone());
-
-                file.EventRegister(task, &waiter, mask);
-
-                // Check if the file happens to already be in a ready state.
-                let ready = file.Readiness(task, mask);
-                if ready != 0 {
-                    entry.CallBack();
-                }
-
-                // need drop files before return
-                drop(files);
-                return Ok(());
+            // Check if a cycle would be created. We use 4 as the limit because
+            // that's the value used by linux and we want to emulate it.
+            if ep.Observes(self, 4) {
+                return Err(Error::SysError(SysErr::ELOOP));
             }
         }
+
+        let waiter = WaitEntry::New();
+        // Create new entry and add it to map.
+        let entryInternal = PollEntryInternal {
+            next: None,
+            prev: None,
+            id: id,
+            file: file.Downgrade(),
+            userData: data,
+            waiter: waiter.Downgrade(),
+            mask: mask,
+            flags: flags,
+
+            epoll: self.clone(),
+            state: PollEntryState::Waiting,
+        };
+
+        let entry = PollEntry(Arc::new(QMutex::new(entryInternal)));
+        waiter.lock().context = WaitContext::EpollContext(entry.clone());
+        files.insert(id, entry.clone());
+
+        file.EventRegister(task, &waiter, mask);
+
+        // Check if the file happens to already be in a ready state.
+        let ready = file.Readiness(task, mask);
+        if ready != 0 {
+            entry.CallBack();
+        }
+
+        // need drop files before return
+        drop(files);
+         return Ok(());
+            
     }
+
 
     pub fn UpdateEntry(
         &self,

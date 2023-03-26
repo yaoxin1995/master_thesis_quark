@@ -242,12 +242,18 @@ pub fn ControlMsgHandler(fd: *const u8) {
         Payload::ExecAthenAcCheck(AuthAcCheckArgs) => {
             let is_allowd;
             {
-                        is_allowd = EXEC_AUTH_AC.write().exec_req_authentication(AuthAcCheckArgs);
-                        let report = GUEST_SEV_DEV.write().get_report();
-                        info!("Payload::ExecAthenAcCheck,  got report {:?}", report);
+                is_allowd = EXEC_AUTH_AC.write().exec_req_authentication(AuthAcCheckArgs);
+                let report = GUEST_SEV_DEV.write().get_report();
 
+                let res = provisioning_http_client(task);
+                if res.is_err() {
+                    error!(" provisioning_http_client get error : {:?}", res);
+                }
+                info!("Payload::ExecAthenAcCheck,  got report {:?}, provisioning_http_client res： {:?}", report, res);
                         
             }
+
+
             WriteControlMsgResp(fd, &&UCallResp::ExecAthenAcCheckResp(is_allowd), true);
         }
         Payload::ProcessIncommingTerminalIoFrame(args) => {

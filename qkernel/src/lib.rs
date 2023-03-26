@@ -56,19 +56,14 @@ extern crate x86_64;
 extern crate xmas_elf;
 #[macro_use]
 extern crate bitflags;
-extern crate hashbrown;
 
 extern crate enum_dispatch;
 
 extern crate modular_bitfield;
-// extern crate sev;
-
-// extern crate aes_gcm_siv;
-// use aes_gcm_siv::{
-//     aead::{Aead, KeyInit, OsRng},
-//     Aes256GcmSiv, Nonce // Or `Aes128GcmSiv`
-// };
-
+extern crate httparse;
+extern crate embedded_tls;
+extern crate embedded_io;
+extern crate log;
 
 #[macro_use]
 mod print;
@@ -111,6 +106,7 @@ use self::qlib::kernel::TSC;
 use crate::qlib::kernel::GlobalIOMgr;
 
 use self::qlib::kernel::vcpu::*;
+use log::max_level;
 //use qlib::kernel::Kernel::HostSpace;
 use vcpu::CPU_LOCAL;
 
@@ -143,21 +139,15 @@ use self::qlib::vcpu_mgr::*;
 use self::syscalls::syscalls::*;
 use self::task::*;
 use self::threadmgr::task_sched::*;
-//use self::vcpu::*;
 use self::qlib::kernel::Scale;
 use self::qlib::kernel::VcpuFreqInit;
 use self::quring::*;
-//use self::heap::QAllocator;
-//use qlib::mem::bitmap_allocator::BitmapAllocatorWrapper;
-// use shielding_layer::*;
 use self::qlib::kernel::sev_guest::*;
+
 
 
 pub const HEAP_START: usize = 0x70_2000_0000;
 pub const HEAP_SIZE: usize = 0x1000_0000;
-
-//use buddy_system_allocator::*;
-//#[global_allocator]
 
 
 #[global_allocator]
@@ -472,11 +462,8 @@ extern crate hmac;
 extern crate sha2;
 extern crate hex_literal;
 extern crate base64ct;
-use sha2::{Sha256, Digest};
-use hmac::{Hmac, Mac};
-use hex_literal::hex;
-use base64ct::{Base64, Encoding};
-// use hex_literal::hex;
+
+
 
 
 #[no_mangle]
@@ -524,6 +511,7 @@ pub extern "C" fn rust_main(
     interrupt::init();
 
     /***************** can't run any qcall before this point ************************************/
+    
 
     if id == 0 {
         //error!("start main: {}", ::AllocatorPrint(10));
@@ -532,40 +520,9 @@ pub extern "C" fn rust_main(
         IOWait();
     };
 
-    let mut hasher = Sha256::new();
-    let data = b"Hello world!";
-    hasher.update(data);
-    // `update` can be called repeatedly and is generic over `AsRef<[u8]>`
-    hasher.update("String data");
-    // Note that calling `finalize()` consumes hasher
-    let hash = hasher.finalize();
-    info!("Binary hash: {:?}", hash);
-
-    type HmacSha256 = Hmac<Sha256>;
-
-    let mut mac = HmacSha256::new_from_slice(b"my secret and secure key")
-    .expect("HMAC can take key of any size");
-    mac.update(b"input message");
-    let result = mac.finalize();
-    let code_bytes = result.into_bytes();
-
-    let expected = hex!("
-    97d2a569059bbcd8ead4444ff99071f4
-    c01d005bcefe0d3567e1be628e5fdcd9
-    ");
-
-    let base64_hash = Base64::encode_string(&hash);
-    info!("Base64-encoded hash: {}", base64_hash);
-
-    let base64_hmac = Base64::encode_string(&code_bytes);
-    info!("Base64-encoded hmac: {}", base64_hmac);
-
-
-    assert_eq!(code_bytes[..], expected[..]);
-
-
     if id == 1 {
         error!("heap start is {:x}", heapStart);
+        print::init().unwrap();
 
         if autoStart {
             CreateTask(StartRootContainer as u64, ptr::null(), false);

@@ -24,7 +24,6 @@ use core::cmp::PartialEq;
 use core::ops::Deref;
 use spin::*;
 use lazy_static::lazy_static;
-use hashbrown::HashMap;
 
 use super::super::super::common::*;
 use super::super::super::linux_def::*;
@@ -225,7 +224,7 @@ impl Dirent {
             main: QMutex::new(main),
             dirMu: QRwLock::new(()),
             cacheMu: Default::default(),
-            children: QMutex::new(HashMap::new()),
+            children: QMutex::new(BTreeMap::new()),
         };
 
         return Self(Arc::new(intern));
@@ -1265,7 +1264,7 @@ pub struct DirentInternal {
     pub main: QMutex<DirentMain>,
     pub dirMu: QRwLock<()>,
     pub cacheMu: QMutex<()>,
-    pub children: QMutex<HashMap<String, DirentWeak>>,
+    pub children: QMutex<BTreeMap<String, DirentWeak>>,
 }
 
 impl Default for DirentInternal {

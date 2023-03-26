@@ -18,7 +18,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::ops::Deref;
 use lazy_static::lazy_static;
-use hashbrown::HashMap;
+
 
 use super::super::super::common::*;
 use super::super::super::linux_def::*;
@@ -186,14 +186,14 @@ impl TCPSocketNamespace {
 
 pub struct TCPSocketNamespaceInner {
     pub gaps: GapMgr,
-    pub descTbl: HashMap<u16, AcceptQueue>,
+    pub descTbl: BTreeMap<u16, AcceptQueue>,
 }
 
 impl TCPSocketNamespaceInner {
     pub fn New() -> Self {
         return Self {
             gaps: GapMgr::New(0, i16::MAX as u64),
-            descTbl: HashMap::new(),
+            descTbl: BTreeMap::new(),
         };
     }
 

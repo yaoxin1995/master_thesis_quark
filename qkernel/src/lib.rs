@@ -59,6 +59,7 @@ extern crate log;
 
 
 extern crate modular_bitfield;
+extern crate embedded_tls;
 
 use core::panic::PanicInfo;
 use core::sync::atomic::{AtomicI32, AtomicUsize, Ordering};

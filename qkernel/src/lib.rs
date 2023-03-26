@@ -66,14 +66,6 @@ use core::{mem, ptr};
 
 use spin::mutex::Mutex;
 extern crate httparse;
-// extern crate sev;
-
-// extern crate aes_gcm_siv;
-// use aes_gcm_siv::{
-//     aead::{Aead, KeyInit, OsRng},
-//     Aes256GcmSiv, Nonce // Or `Aes128GcmSiv`
-// };
-
 
 #[macro_use]
 mod print;
@@ -143,12 +135,6 @@ use self::quring::*;
 use self::syscalls::syscalls::*;
 use self::task::*;
 use self::threadmgr::task_sched::*;
-
-
-
-//#[macro_use]
-//pub mod asm;
-//mod taskMgr;
 
 #[macro_use]
 mod interrupt;
@@ -521,11 +507,8 @@ extern crate hmac;
 extern crate sha2;
 extern crate hex_literal;
 extern crate base64ct;
-use sha2::{Sha256, Digest};
-use hmac::{Hmac, Mac};
-use hex_literal::hex;
-use base64ct::{Base64, Encoding};
-// use hex_literal::hex;
+
+
 
 
 
@@ -574,6 +557,7 @@ pub extern "C" fn rust_main(
     interrupt::init();
 
     /***************** can't run any qcall before this point ************************************/
+    
 
     if id == 0 {
         //error!("start main: {}", ::AllocatorPrint(10));
@@ -581,38 +565,6 @@ pub extern "C" fn rust_main(
         //ALLOCATOR.Print();
         IOWait();
     };
-
-    let mut hasher = Sha256::new();
-    let data = b"Hello world!";
-    hasher.update(data);
-    // `update` can be called repeatedly and is generic over `AsRef<[u8]>`
-    hasher.update("String data");
-    // Note that calling `finalize()` consumes hasher
-    let hash = hasher.finalize();
-    info!("Binary hash: {:?}", hash);
-
-    type HmacSha256 = Hmac<Sha256>;
-
-    let mut mac = HmacSha256::new_from_slice(b"my secret and secure key")
-    .expect("HMAC can take key of any size");
-    mac.update(b"input message");
-    let result = mac.finalize();
-    let code_bytes = result.into_bytes();
-
-    let expected = hex!("
-    97d2a569059bbcd8ead4444ff99071f4
-    c01d005bcefe0d3567e1be628e5fdcd9
-    ");
-
-    let base64_hash = Base64::encode_string(&hash);
-    info!("Base64-encoded hash: {}", base64_hash);
-
-    let base64_hmac = Base64::encode_string(&code_bytes);
-    info!("Base64-encoded hmac: {}", base64_hmac);
-
-
-    assert_eq!(code_bytes[..], expected[..]);
-
 
     if id == 1 {
         error!("heap start is {:x}", heapStart);

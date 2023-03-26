@@ -30,7 +30,9 @@ base64ct = { version = "1.5.3",  features = ["alloc"]}
 modular-bitfield = "0.11.2"
 rand = { version = "0.8.3", features = ["getrandom"], default-features = false }
 httparse = { version ="1.8.0", default-features = false }
-
+embedded-tls  = { version ="0.12.0", default-features = false, features = ["log"] }
+embedded-io = "0.4.0"
+log = { version = "0.4", features = ["max_level_trace", "release_max_level_trace"] }
 
 [package.metadata.cargo-xbuild]
 sysroot_path = "../target/sysroot"

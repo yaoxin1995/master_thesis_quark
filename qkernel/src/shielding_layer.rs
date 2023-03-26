@@ -22,6 +22,7 @@ use sha2::{Sha256};
 use hmac::{Hmac, Mac};
 use base64ct::{Base64, Encoding};
 use crate::qlib::kernel::sev_guest::*;
+// use log::{error, info, debug};
 
 lazy_static! {
     pub static ref TERMINAL_SHIELD:  RwLock<TerminalShield> = RwLock::new(TerminalShield::default());
@@ -1053,6 +1054,10 @@ impl TermianlIoShiled for TerminalShield {
 
 
 
+
+
+
+
 /******************************************Provisioning HTTPS Client****************************************************************** */
 use alloc::sync::Arc;
 
@@ -1066,12 +1071,35 @@ use crate::httparse;
 use qlib::kernel::kernel::timer::MonotonicNow;
 use qlib::kernel::kernel::time::Time;
 use qlib::linux_def::SysErr;
+use embedded_tls::blocking::*;
 
 const SECRET_MANAGER_IP:  [u8;4] = [10, 206, 133, 76];
 const SECRET_MANAGER_PORT: u16 = 8000;
 
 pub struct ShieldSocketProvider {
     pub family: i32,
+}
+
+pub struct ShieldProvisioningHttpSClient {
+    pub socket_file: Arc<File>,
+    pub read_buf : Vec<u8>,
+    pub read_from_buf_len: usize,
+    pub total_loop_times_of_try_to_read_from_server: usize,
+}
+
+
+impl ShieldProvisioningHttpSClient {
+
+    fn init (scoket: Arc<File>, read_buf_len: usize, total_loop_times: usize) -> Self{
+
+        ShieldProvisioningHttpSClient { 
+            socket_file: scoket, 
+            read_buf: Vec::new(),  
+            read_from_buf_len: read_buf_len,
+            total_loop_times_of_try_to_read_from_server: total_loop_times,
+        }
+    }
+    
 }
 
 impl Provider for ShieldSocketProvider {
@@ -1109,24 +1137,234 @@ impl Provider for ShieldSocketProvider {
     }
 }
 
+fn try_get_data_from_server (task: &Task, socket_op: FileOps, read_to: &mut [u8], total_loop_times: usize) -> Result<i64> {
+
+
+    let mut pMsg = MsgHdr::default();
+
+    // The msg_name and msg_namelen fields contain the address and address length to which the message is sent. 
+    // For further information about the structure of socket addresses, see the Sockets programming topic collection. 
+    // If the msg_name field is set to a NULL pointer, the address information is not returned.
+    pMsg.msgName = 0;
+    pMsg.nameLen = 0;
+
+
+    let flags = crate::qlib::linux_def::MsgType::MSG_DONTWAIT;
+    let mut deadline = None;
+
+    let dl = socket_op.SendTimeout();
+    if dl > 0 {
+        let now = MonotonicNow();
+        deadline = Some(Time(now + dl));
+    }
+
+    let resp_buf =  DataBuff::New(read_to.len());
+    let mut dst = resp_buf.Iovs(resp_buf.Len());
+    let mut bytes: i64 = 0;
+
+    let mut loop_time = 0;
+
+    loop {
+        if loop_time > total_loop_times {
+            log::trace!("try_get_data_from_server: we have tried {:?} times to get the http resps, receive {:?} bytes, default RecvMsg flag {:?}", loop_time,  bytes, flags);
+            break;
+        }
+        // info!("try_get_data_from_server get http get resp, bytes {:?} before recvmsg, flags {:?}", bytes, flags);
+        match socket_op.RecvMsg(task, &mut dst, flags, deadline, false, 0) {
+            Ok(res) => {
+                let (n, mut _mflags, _, _) = res;
+                assert!(n >= 0);
+                bytes = bytes + n;
+                // info!("try_get_data_from_server get http get resp, ok bytes {:?} after recvmsg, flags {:?},RecvMsg return {:?} bytes", bytes, flags, n);
+
+                if bytes as usize == read_to.len() {
+                    break;
+                }
+                assert!(bytes >= 0);
+                // rust pointer arthmitic
+                let new_start_pointer;
+                unsafe {
+                    new_start_pointer = resp_buf.buf.as_ptr().offset(bytes as isize);
+                }
+
+                let io_vec = IoVec {
+                start: new_start_pointer as u64,
+                len: resp_buf.Len() - bytes as usize,
+                };
+
+                dst = [io_vec];},
+            Err(e) => match  e {
+                Error::SysError(SysErr::EWOULDBLOCK) =>  {
+                    log::trace!("try_get_data_from_server RecvMsg get error SysErr::EWOULDBLOCK, try again");
+                }
+                _ => {
+                    log::trace!("try_get_data_from_server RecvMsg get error {:?} exit from loop", e);
+                    break;
+                }
+            },
+        };
+        loop_time = loop_time + 1;
+    }
+
+    assert!(bytes >= 0);
+    let http_get_resp = String::from_utf8_lossy(&resp_buf.buf.as_slice()[..bytes as usize]).to_string();
+
+    log::trace!("try_get_data_from_server http get resp: {}", http_get_resp);
+
+    read_to[0..(bytes as usize)].clone_from_slice(&resp_buf.buf[0..(bytes as usize)]);
+
+    //log::trace!("try_get_data_from_server read_to {:?}, resp_buf.buf {:?}",read_to, resp_buf.buf);
+    return Ok(bytes);
+}
+
+
+
+impl embedded_io::Io for ShieldProvisioningHttpSClient {
+    type Error = embedded_tls::TlsError;
+}
+
+impl embedded_io::blocking::Read for ShieldProvisioningHttpSClient {
+    fn read<'m>(&'m mut self, read_to: &'m mut [u8]) -> core::result::Result<usize, Self::Error> {
+
+        log::trace!("embedded_io::blocking::read start, read_to len {:?}, ShieldProvisioningHttpSClient buffer {:?}, len {:?}", read_to.len(), self.read_buf, self.read_buf.len());
+        let socket_op = self.socket_file.FileOp.clone();
+        let read_to_len = read_to.len();
+        let current_task = Task::Current();
+
+        if read_to_len <= self.read_buf.len() {
+            read_to.clone_from_slice(&self.read_buf[..read_to_len]);
+            self.read_buf.drain(0..read_to_len);
+            log::trace!("embedded_io::blocking::Read return {:?} byte from the buffer, read_to {:?}, ShieldProvisioningHttpSClient len {:?} buffer {:?} ", read_to_len, read_to, self.read_buf.len(), self.read_buf);
+
+
+            // try get more data from server side before return
+            let mut buf: [u8; 30000] = [0; 30000];
+            let res = try_get_data_from_server(current_task, socket_op, &mut buf, self.total_loop_times_of_try_to_read_from_server);
+            if res.is_err() {
+                info!("try_get_data_from_server get error : {:?}", res);
+            } else {
+                let buf_len = res.unwrap();
+                let buf_slice = buf.as_slice();
+                let mut buf_vec = buf_slice[..(buf_len as usize)].to_vec();
+                self.read_buf.append(&mut buf_vec);
+                log::trace!("get data with len {:?} from server, put it into buffer, ShieldProvisioningHttpSClient len {:?} buffer {:?}", buf_len, self.read_buf.len(), self.read_buf);
+            }
+            return Ok(read_to_len as usize);
+        }
+
+        let current_task = Task::Current();
+        let mut deadline = None;
+        let mut flags = 0 as i32;
+        let dl = socket_op.SendTimeout();
+        if dl > 0 {
+            let now = MonotonicNow();
+            deadline = Some(Time(now + dl));
+        } else if dl < 0 {
+            flags |= crate::qlib::linux_def::MsgType::MSG_DONTWAIT
+        }
+
+        let buffer =  DataBuff::New(self.read_from_buf_len);
+        let mut buffer_iovec = buffer.Iovs(buffer.Len());
+    
+        log::trace!("embedded_io::blocking::Read get package from intenet, before recvmsg, flags {:?}", flags);
+        match socket_op.RecvMsg(current_task, &mut buffer_iovec, flags, deadline, false, 0) {
+            Ok(res) => {
+                let (n, mut _mflags, _, _) = res;
+                let http_get_resp = String::from_utf8_lossy(&buffer.buf[..(n as usize)]).to_string();
+                log::trace!("embedded_io::blocking::Read get package from intenet get resp, ok, bytes {:?} after recvmsg, flags {:?}, reverive: {:?}", n, flags, http_get_resp);
+                
+                // assert!(n >= read_to_len as i64);
+                // return the data with read_to_len, store the rest in the read buffer
+                let buf_slice = buffer.buf.as_slice();
+                let mut buf_vec = buf_slice[..(n as usize)].to_vec();
+                self.read_buf.append(&mut buf_vec);
+
+                assert!(self.read_buf.len() >= read_to_len);
+                let read_buf_slice = self.read_buf.as_slice();
+                read_to.clone_from_slice(&read_buf_slice[..read_to_len]);
+                self.read_buf.drain(0..read_to_len);
+                log::trace!("embedded_io::blocking::Read return {:?} byte after RecvMsg, read_to {:?}, ShieldProvisioningHttpSClient len {:?} buffer {:?}", read_to_len, read_to,  self.read_buf.len(), self.read_buf);
+                return Ok(read_to_len as usize);
+            
+            },
+            Err(e) => {
+                log::trace!("embedded_io::blocking::Read get package from intenet get resp, error {:?}  flags {:?}", e, flags);
+                // TODO: return the exact error we got
+                return Err(embedded_tls::TlsError::Io(embedded_io::ErrorKind::Other));
+            },
+        }
+    }
+}
+
+impl embedded_io::blocking::Write for ShieldProvisioningHttpSClient {
+    fn write<'m>(&'m mut self, write_from: &'m [u8]) -> core::result::Result<usize, Self::Error> {
+        let socket_op = self.socket_file.FileOp.clone();
+
+        let current_task = Task::Current();
+
+        let mut pMsg = MsgHdr::default();
+
+        // The msg_name and msg_namelen fields contain the address and address length to which the message is sent. 
+        // For further information about the structure of socket addresses, see the Sockets programming topic collection. 
+        // If the msg_name field is set to a NULL pointer, the address information is not returned.
+        pMsg.msgName = 0;
+        pMsg.nameLen = 0;
+    
+        let mut deadline = None;
+        let mut flags = 0 as i32;
+    
+        let dl = socket_op.SendTimeout();
+        if dl > 0 {
+            let now = MonotonicNow();
+            deadline = Some(Time(now + dl));
+        } else if dl < 0 {
+            flags |= crate::qlib::linux_def::MsgType::MSG_DONTWAIT
+        }
+        
+        let mut req_buf = DataBuff::New(write_from.len());
+        let write_buf = write_from.to_vec();
+        req_buf.buf = write_buf;
+        let src = req_buf.Iovs(write_from.len());
+
+        log::trace!("call_send send SendMsg start");
+        let res = socket_op.SendMsg(current_task, &src, flags, &mut pMsg, deadline);
+        if res.is_err() {
+            info!("call_send SendMsg get error  irte {:?} bytes data to tty", res);
+            return Err(embedded_tls::TlsError::Io(embedded_io::ErrorKind::Other));
+        }
+        
+        let res = res.unwrap();
+
+        let http_get_resp = String::from_utf8_lossy(write_from).to_string();
+
+        log::trace!("call_send send req finished, get {:?} bytes, data: {:?}", res, http_get_resp);
+
+        Ok(res as usize)
+    }
+
+    fn flush<'m>(&'m mut self) -> core::result::Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
 
 /**
  * ip: the ip of secret manager
  * port: on which port the secret manager is listening on
  * TODO: Get the ip and port of the secrect manager from container deployment yaml
 */
-pub fn socket_connect(task: &Task, ip: [u8;4], port: u16) -> Result<Arc<File>> {
+pub fn get_socket(task: &Task, ip: [u8;4], port: u16) -> Result<Arc<File>> {
 
 
     // get a qkernel socket file object, 
-    info!("socket_connect start");
+    log::trace!("socket_connect start");
 
     let family = AFType::AF_INET;  // ipv4
     let socket_type = LibcConst::SOCK_STREAM as i32;
     let protocol = 0;   
     let ipv4_provider = ShieldSocketProvider { family: family};
 
-    info!("socket_connect get a socekt from host");
+    log::trace!("socket_connect get a socekt from host");
     let socket_file = ipv4_provider.Socket(task, socket_type, protocol).unwrap().unwrap();
 
     let flags = SettableFileFlags {
@@ -1150,8 +1388,8 @@ pub fn socket_connect(task: &Task, ip: [u8;4], port: u16) -> Result<Arc<File>> {
 
     let socket_addr_vec = sock_addr.ToVec().unwrap();
 
-    info!("socket_connect connect to secret manager");
     socket_op.Connect(task, socket_addr_vec.as_slice(), blocking)?;
+    log::trace!("socket_connect connect to secret manager done");
 
     return Ok(socket_file);
 
@@ -1159,100 +1397,58 @@ pub fn socket_connect(task: &Task, ip: [u8;4], port: u16) -> Result<Arc<File>> {
 }
 
 
-pub fn provisioning_http_client(task: &Task) -> Result<i64> {
+
+pub fn provisioning_http_client(task: &Task) -> core::result::Result<usize, embedded_tls::TlsError> {
 
     const DEFAULT_GET_REQUEST: &[u8; 30] = b"GET /kbs/v0/hello HTTP/1.1\r\n\r\n";
 
-    info!("provisioning_http_client start");
+    log::trace!("provisioning_http_client start");
 
-    let connection_to_secret_manager = socket_connect(task, SECRET_MANAGER_IP, SECRET_MANAGER_PORT).unwrap();
-    info!("socket_connect end");
-
-    let socket_op = connection_to_secret_manager.FileOp.clone();
-
-    let mut pMsg = MsgHdr::default();
-
-    // The msg_name and msg_namelen fields contain the address and address length to which the message is sent. 
-    // For further information about the structure of socket addresses, see the Sockets programming topic collection. 
-    // If the msg_name field is set to a NULL pointer, the address information is not returned.
-    pMsg.msgName = 0;
-    pMsg.nameLen = 0;
-
-    let mut deadline = None;
-    let mut flags = 0 as i32;
-
-    let dl = socket_op.SendTimeout();
-    if dl > 0 {
-        let now = MonotonicNow();
-        deadline = Some(Time(now + dl));
-    } else if dl < 0 {
-        flags |= crate::qlib::linux_def::MsgType::MSG_DONTWAIT
+    let socket_to_sm = get_socket(task, SECRET_MANAGER_IP, SECRET_MANAGER_PORT);
+    if socket_to_sm.is_err() {
+        info!("get_socket get error");
+        return Err(embedded_tls::TlsError::ConnectionClosed);
     }
 
-    if !connection_to_secret_manager.Blocking() {
-        flags |= crate::qlib::linux_def::MsgType::MSG_DONTWAIT;
-    }
+    let client = ShieldProvisioningHttpSClient::init(socket_to_sm.unwrap(), 30000, 10000);   // ~30 Mib
 
-    let mut req_buf = DataBuff::New(DEFAULT_GET_REQUEST.len());
-    req_buf.buf = DEFAULT_GET_REQUEST.to_vec();
-    let src = req_buf.Iovs(DEFAULT_GET_REQUEST.len());
+    let mut read_record_buffer = [0; 16384];
+    let mut write_record_buffer = [0; 16384];
+    let mut rng = OsRng;
 
-    info!("provisioning_http_client send http get req");
-    let res = socket_op.SendMsg(task, &src, flags, &mut pMsg, deadline);
+    // TODO: figur out the server name
+    let config = TlsConfig::new().enable_rsa_signatures();
+
+    let mut tls: TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSha256> = TlsConnection::new(client, &mut read_record_buffer, &mut write_record_buffer);
+
+
+    // TODO: add verrifyer to verify the server certificate
+    let res = tls.open::<OsRng, NoVerify>(TlsContext::new(&config, &mut rng,));
     if res.is_err() {
-        info!("provisioning_http_client SendMsg get error  irte {:?} bytes data to tty", res);
+        info!("tls.open get error : {:?}", res);
+        return Err(res.err().unwrap());
+    }
+
+    let res = tls.write(DEFAULT_GET_REQUEST);
+    if res.is_err() {
+        info!(" tls.write get error : {:?}", res);
         return res;
     }
 
-    let resp_buf =  DataBuff::New(4096);
-    let mut dst = resp_buf.Iovs(resp_buf.Len());
-    let mut bytes: i64 = -1;
-    let flags = crate::qlib::linux_def::MsgType::MSG_DONTWAIT;
-    let mut loop_time = 0;
-
-    loop {
-        if loop_time > 5000 {
-            info!("provisioning_http_client: we have tried {:?} times to get the http resps, receive {:?} bytes, default RecvMsg flag {:?}", loop_time,  bytes, flags);
-            break;
-        }
-        info!("provisioning_http_client get http get resp, bytes {:?} before recvmsg, flags {:?}", bytes, flags);
-        match socket_op.RecvMsg(task, &mut dst, flags, deadline, false, 0) {
-            Ok(res) => {
-                let (n, mut _mflags, _, _) = res;
-                bytes = bytes + n;
-                info!("provisioning_http_client get http get resp, ok bytes {:?} after recvmsg, flags {:?}", bytes, flags);
-
-
-                // rust pointer arthmitic
-                let new_start_pointer;
-                unsafe {
-                    new_start_pointer = resp_buf.buf.as_ptr().offset(bytes as isize);
-                }
-
-                let io_vec = IoVec {
-                start: new_start_pointer as u64,
-                len: resp_buf.Len() - bytes as usize,
-                };
-
-                dst = [io_vec];},
-            Err(e) => match  e {
-                Error::SysError(SysErr::EWOULDBLOCK) =>  {
-                    info!("provisioning_http_client RecvMsg get error SysErr::EWOULDBLOCK, try again");
-                }
-                _ => {
-                    info!("provisioning_http_client RecvMsg get error {:?} exit from loop", e);
-                    break;
-                }
-            },
-        };
-        loop_time = loop_time + 1;
+    //all number literals except the byte literal allow a type suffix, such as 57u8
+   // So 0u8 is the number 0 as an unsigned 8-bit integer.
+    let mut rx_buf = [0; 4096];
+    let resp_len = tls.read(&mut rx_buf);
+    if resp_len.is_err() {
+        info!("tls.read get error : {:?}", resp_len);
+        return resp_len;
     }
 
-    assert!(bytes > 0);
-    let http_get_resp = String::from_utf8_lossy(&resp_buf.buf.as_slice()[..bytes as usize]).to_string();
+    let resp_len = resp_len.unwrap();
+    assert!(resp_len > 0);
 
-    info!("provisioning_http_client http get resp: {}", http_get_resp);
-    Ok(bytes)
+    let http_get_resp = String::from_utf8_lossy(&rx_buf[..resp_len as usize]).to_string();
+
+    info!("provisioning_https_client http get resp: {}", http_get_resp);
+    Ok(resp_len)
 }
-
-    

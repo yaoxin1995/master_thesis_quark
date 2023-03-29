@@ -127,9 +127,6 @@ impl sev_guest::AttestationReport {
 
         info!("prepare_guest_attestation_report get report from host  {:?}", sample_report);
     
-        let family_id = vec_to_array(sample_report.family_id.to_vec());
-        let image_id = vec_to_array(sample_report.image_id.to_vec());
-    
         let platform_version = sev_guest::TcbVersion {
             boot_loader: sample_report.platform_version.boot_loader,
             tee: sample_report.platform_version.tee,
@@ -148,45 +145,43 @@ impl sev_guest::AttestationReport {
             raw: vec![0;8],
         };
         
-        let measurement = vec_to_array(sample_report.measurement.to_vec());
-        let host_data = vec_to_array(sample_report.host_data.to_vec());
-        let id_key_digest = vec_to_array(sample_report.id_key_digest.to_vec());
-        let author_key_digest = vec_to_array(sample_report.author_key_digest.to_vec());
-        let report_id = vec_to_array(sample_report.report_id.to_vec());
-        let report_id_ma = vec_to_array(sample_report.report_id_ma.to_vec());
-        let chip_id = vec_to_array(sample_report.chip_id.to_vec());
-    
+        let mut reserverd = Vec::new();
+        reserverd.resize(368, 0);
         let signature = sev_guest::SnpAttestationReportSignature {
-            r: vec_to_array(sample_report.signature.r.clone()),
-            s: vec_to_array(sample_report.signature.s.clone()),
-            reserved: [0; 368],
+            r: sample_report.signature.r.clone(),
+            s: sample_report.signature.s.clone(),
+            reserved: reserverd, //[0; 368],
         };
 
-        let report_data = vec_to_array(sample_report.report_data);
+        let mut reserverd1 = Vec::new();
+        reserverd1.resize(24, 0);
+
+        let mut reserverd2 = Vec::new();
+        reserverd2.resize(192, 0);
     
         let snp_report = sev_guest::AttestationReport {
             version : sample_report.version,
             guest_svn: sample_report.guest_svn,
             policy: sample_report.policy,
-            family_id: family_id,
-            image_id: image_id,
+            family_id: sample_report.family_id.to_vec(),
+            image_id: sample_report.image_id.to_vec(),
             vmpl: sample_report.vmpl,
             signature_algo: sample_report.signature_algo,
             platform_version: platform_version,
             flags:sample_report.flags,
             platform_info: sample_report.platform_info,
             reserved0: 0,
-            report_data: report_data,
-            measurement: measurement,
-            host_data: host_data,
-            id_key_digest: id_key_digest,
-            author_key_digest: author_key_digest,
-            report_id: report_id,
-            report_id_ma: report_id_ma,
+            report_data: sample_report.report_data.clone(),
+            measurement: sample_report.measurement.to_vec(),
+            host_data: sample_report.host_data.to_vec(),
+            id_key_digest: sample_report.id_key_digest.to_vec(),
+            author_key_digest: sample_report.author_key_digest.to_vec(),
+            report_id: sample_report.report_id.to_vec(),
+            report_id_ma: sample_report.report_id_ma.to_vec(),
             reported_tcb: reported_tcb,
-            reserved1: [0; 24],
-            chip_id: chip_id,
-            reserved2: [0; 192],
+            reserved1: reserverd1,
+            chip_id: sample_report.chip_id.to_vec(),
+            reserved2: reserverd2,
             signature: signature,
         };
     

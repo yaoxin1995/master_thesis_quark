@@ -213,38 +213,38 @@ pub struct TcbVersion {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct SnpAttestationReportSignature {
-	pub r: [u8; 72],
-	pub s: [u8; 72],
-	pub reserved: [u8; 368],
+	pub r: Vec<u8>, // 72 bytes,
+	pub s: Vec<u8>, //72 bytes,
+	pub reserved: Vec<u8>,  // 368 bytes,
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct AttestationReport {
 	pub version: u32,		/* 0x000 */
 	pub guest_svn: u32,	/* 0x004 */
 	pub policy: u64,			/* 0x008 */
-	pub family_id: [u8; 16],		/* 0x010 */
-	pub image_id: [u8; 16],			/* 0x020 */
+	pub family_id: Vec<u8>, /* 16 bytes, 0x010 */
+	pub image_id: Vec<u8>, /*16 bytes, 0x020 */
 	pub vmpl: u32,				/* 0x030 */
 	pub signature_algo: u32,		/* 0x034 */
-	pub platform_version: TcbVersion,		/* 0x038 */
+	pub platform_version: TcbVersion,  /* 0x038 */
 	pub platform_info: u64,		/* 0x040 */
 	pub flags: u32,			/* 0x048 */
 	pub reserved0: u32,		/* 0x04C */
-	pub report_data: [u8; 64],		/* 0x050 */
-	pub measurement: [u8; 48],	/* 0x090 */
-	pub host_data: [u8 ;32],		/* 0x0C0 */
-	pub id_key_digest: [u8; 48],		/* 0x0E0 */
-	pub author_key_digest: [u8; 48],	/* 0x110 */
-	pub report_id: [u8; 32],		/* 0x140 */
-	pub report_id_ma: [u8; 32],		/* 0x160 */
-	pub reported_tcb: TcbVersion,			/* 0x180 */
-	pub reserved1: [u8; 24],		/* 0x188 */
-	pub chip_id: [u8; 64],			/* 0x1A0 */
-	pub reserved2: [u8; 192],		/* 0x1E0 */
+	pub report_data: Vec<u8>, /*64 bytes, 0x050 */
+	pub measurement: Vec<u8>, 	/*48 bytes, 0x090 */
+	pub host_data: Vec<u8>, /*32 bytes, 0x0C0 */
+	pub id_key_digest: Vec<u8>, /*48 bytes, 0x0E0 */
+	pub author_key_digest: Vec<u8>, /*48 bytes, 0x110 */
+	pub report_id: Vec<u8>, /*32 bytes, 0x140 */
+	pub report_id_ma: Vec<u8>, 	/*32 bytes, 0x160 */
+	pub reported_tcb: TcbVersion,	/* 0x180 */
+	pub reserved1: Vec<u8>, /*24 bytes, 0x188 */
+	pub chip_id: Vec<u8>, /*64 bytes, 0x1A0 */
+	pub reserved2: Vec<u8>, /*192 bytes, 0x1E0 */
 	pub signature: SnpAttestationReportSignature  /* 0x2A0 */
 }
 

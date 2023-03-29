@@ -3,6 +3,7 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 use alloc::collections::btree_map::BTreeMap;
 use spin::rwlock::RwLock;
+use xmas_elf::header;
 use crate::aes_gcm::{
     aead::{Aead, KeyInit, OsRng, generic_array::{GenericArray, typenum::U32}, rand_core::RngCore},
     Aes256Gcm, Nonce, // Or `Aes128Gcm`
@@ -1060,14 +1061,12 @@ impl TermianlIoShiled for TerminalShield {
 
 /******************************************Provisioning HTTPS Client****************************************************************** */
 use alloc::sync::Arc;
-
 use qlib::kernel::socket::socket::Provider;
 use qlib::kernel::socket::hostinet::hostsocket::newHostSocketFile;
 use qlib::kernel::fs::flags::SettableFileFlags;
 use qlib::kernel::Kernel;
 use super::qlib::kernel::fs::file::*;
 use qlib::kernel::tcpip::tcpip::*;
-use crate::httparse;
 use qlib::kernel::kernel::timer::MonotonicNow;
 use qlib::kernel::kernel::time::Time;
 use qlib::linux_def::SysErr;
@@ -1076,20 +1075,104 @@ use embedded_tls::blocking::*;
 const SECRET_MANAGER_IP:  [u8;4] = [10, 206, 133, 76];
 const SECRET_MANAGER_PORT: u16 = 8000;
 
+
+const attestation_protocol_version: &str = "0.1.0";
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TeePubKey {
+    kty: String,
+    alg: String,
+    pub k: String,
+}
+
+/// The supported TEE types:
+/// - Tdx: TDX TEE.
+/// - Sgx: SGX TEE.
+/// - Sevsnp: SEV-SNP TEE.
+/// - Sample: A dummy TEE that used to test/demo the KBC functionalities.
+#[derive(Debug)]
+pub enum Tee {
+    Sev,
+    Sgx,
+    Snp,
+    Tdx,
+
+    // This value is only used for testing an attestation server, and should not
+    // be used in an actual attestation scenario.
+    Sample,
+}
+
+pub const KBS_PROTOCOL_VERSION: &str = "0.1.0";
+pub const http_header_cokie: &str = "set-cookie";
+pub const http_header_content_lenth: &str = "content-length";
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Request {
+    version: String,
+    tee: String,
+
+    // Reserved field.
+    #[serde(rename = "extra-params")]
+    pub extra_params: String,
+}
+
+impl Request {
+    pub fn new(tee: String) -> Request {
+        Request {
+            version: KBS_PROTOCOL_VERSION.to_string(),
+            tee,
+            extra_params: "".to_string(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct Challenge {
+    // Nonce from KBS to prevent replay attack.
+    pub nonce: String,
+
+    // Reserved field.
+    #[serde(rename = "extra-params")]
+    pub extra_params: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Attestation {
+    // The public key of TEE.
+    // Its hash is included in `tee-evidence`.
+    #[serde(rename = "tee-pubkey")]
+    pub tee_pubkey: TeePubKey,
+
+    // TEE quote, different TEE type has different format of the content.
+    #[serde(rename = "tee-evidence")]
+    pub tee_evidence: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Response {
+    pub protected: String,
+    pub encrypted_key: String,
+    pub iv: String,
+    pub ciphertext: String,
+    pub tag: String,
+}
+
 pub struct ShieldSocketProvider {
     pub family: i32,
 }
 
+#[derive(Clone)]
 pub struct ShieldProvisioningHttpSClient {
     pub socket_file: Arc<File>,
     pub read_buf : Vec<u8>,
     pub read_from_buf_len: usize,
     pub total_loop_times_of_try_to_read_from_server: usize,
+    challenge : Challenge,
+    cookie: String,
+
 }
 
-
 impl ShieldProvisioningHttpSClient {
-
     fn init (scoket: Arc<File>, read_buf_len: usize, total_loop_times: usize) -> Self{
 
         ShieldProvisioningHttpSClient { 
@@ -1097,7 +1180,113 @@ impl ShieldProvisioningHttpSClient {
             read_buf: Vec::new(),  
             read_from_buf_len: read_buf_len,
             total_loop_times_of_try_to_read_from_server: total_loop_times,
+            challenge: Challenge::default(),
+            cookie: String::default(),
         }
+    }
+    
+    /**
+     * Payload format of the request:
+      {
+        /* Attestation protocol version number used by KBC */
+        "version": "0.1.0",
+        /*
+         * Type of HW-TEE platforms where KBC is located,
+         * e.g. "intel-tdx", "amd-sev-snp", etc.
+         */
+        "tee": "$tee",
+        /* Reserved fields to support some special requests sent by HW-TEE. 
+         * In the run-time attestation scenario (Intel TDX and SGX, AMD SEV-SNP), 
+         * the extra-params field is not used, so is set to the empty string
+         */
+        "extra-params": {}
+       }
+     */
+    fn prepair_post_auth_http_req(&self, attestation_protocal_version: String, tee_type: Tee, extra_params: String) -> String {
+    
+        // const POST_AUTH_HTTP_REQUEST_FORMAT: &[u8; 88] = b"POST /kbs/v0/auth HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: {:?}\r\n\r\n{:?}";
+        // const CONTENT_FORMAT: &str = "{version:{}, tee:{}, extra_params:{}}";
+    
+        let tee = match tee_type {
+            Tee::Sample => "sample",
+            Tee::Sev => "sev",
+            Tee::Sgx => "sgx",
+            Tee::Tdx => "tdx",
+            Tee::Snp => "snp" 
+        };
+    
+        let req = Request {
+            tee: tee.to_string(),
+            version: attestation_protocal_version,
+            extra_params:extra_params,
+        };
+    
+        let serialized_req = serde_json::to_string(&req).unwrap();
+    
+        let post_string = format!("POST /kbs/v0/auth HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}", serialized_req.as_bytes().len(), serialized_req);
+    
+    
+        log::info!("post_auth_http_req creat post str {:?}", post_string);
+    
+        post_string
+    }
+    
+    fn parse_auth_http_resp(&mut self, resp_buf: &[u8]) -> Result<()> {
+
+        info!("parse_auth_http_resp response  start");
+    
+        let mut resp_headers = [httparse::EMPTY_HEADER; 4];
+        let mut http_resp = httparse::Response::new(&mut resp_headers);
+    
+        let res = http_resp.parse(resp_buf).unwrap();
+        if res.is_partial() {
+            info!("parse_auth_http_resp response is partial");
+            return Err(Error::Common("parse_auth_http_resp response is partial".to_string()));
+        }
+
+        if http_resp.code.unwrap() != 200 {
+            let http_get_resp = String::from_utf8_lossy(resp_buf).to_string();
+            info!("parse_auth_http_resp response: we get error response {}", http_get_resp);
+            return Err(Error::Common("parse_auth_http_resp response: we get error response".to_string()));
+        }
+
+        // let mut content_lenght;
+        for h in http_resp.headers {
+            info!("parse_auth_http_resp get header name: {}", h.name);
+            if h.name == http_header_cokie {
+
+                let cookie = String::from_utf8_lossy(h.value).to_string();
+
+                info!("parse_auth_http_resp get cookie {}", cookie);
+                self.cookie = cookie;
+            }
+
+            // if h.name == http_header_content_lenth {
+
+            //     let lenght = String::from_utf8_lossy(h.value).to_string();
+
+            //     info!("parse_auth_http_resp get content length {}", lenght);
+            //     content_lenght = lenght.parse::<usize>().unwrap();
+            // }
+        }
+
+        let resp_payload_start = res.unwrap();
+        assert!(resp_payload_start > 0);
+
+        let resp_payload = &resp_buf[resp_payload_start..];
+
+        let challenge: Result<Challenge> = serde_json::from_slice(resp_payload).map_err(|x| {Error::Common(format!("parse_auth_http_resp serde_json::from_slice failed error code: {x}"))});
+        if challenge.is_err() {
+            info!("{:?}", challenge.as_ref().err().unwrap());
+            return Err(challenge.err().unwrap());
+        }
+
+        self.challenge = challenge.unwrap();
+
+        info!("parse_auth_http_resp response finished, cookie {}， challenge: {:?}", self.cookie, self.challenge);
+
+        return Ok(());
+    
     }
     
 }
@@ -1355,7 +1544,6 @@ impl embedded_io::blocking::Write for ShieldProvisioningHttpSClient {
 */
 pub fn get_socket(task: &Task, ip: [u8;4], port: u16) -> Result<Arc<File>> {
 
-
     // get a qkernel socket file object, 
     log::trace!("socket_connect start");
 
@@ -1398,6 +1586,42 @@ pub fn get_socket(task: &Task, ip: [u8;4], port: u16) -> Result<Arc<File>> {
 
 
 
+fn send_http_request_to_sm (tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSha256>, http_req: String, rx_buf: &mut [u8]) ->  core::result::Result<usize, embedded_tls::TlsError>{
+
+    let sx_buf = http_req.as_bytes();
+    let res = tls.write(sx_buf);
+    if res.is_err() {
+        info!("send_http_request_to_sm tls.write get error : {:?}", res);
+        return res;
+    }
+
+    //all number literals except the byte literal allow a type suffix, such as 57u8
+   // So 0u8 is the number 0 as an unsigned 8-bit integer.
+    let resp_len = tls.read(rx_buf);
+    if resp_len.is_err() {
+        info!("send_http_request_to_sm tls.read get error : {:?}", resp_len);
+        return resp_len;
+    }
+    resp_len
+}
+
+fn set_up_tls<'a>(client: &'a ShieldProvisioningHttpSClient, read_record_buffer: &'a mut [u8], write_record_buffer: &'a mut [u8], rng: &mut OsRng) -> core::result::Result<TlsConnection<'a, ShieldProvisioningHttpSClient, Aes128GcmSha256>, embedded_tls::TlsError> {
+
+    // TODO: figur out the server name
+    let config = TlsConfig::new().enable_rsa_signatures();
+
+    let mut tls: TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSha256> = TlsConnection::new(client.clone(), read_record_buffer, write_record_buffer);
+
+    // TODO: add verrifyer to verify the server certificate
+    let res = tls.open::<OsRng, NoVerify>(TlsContext::new(&config, rng));
+    if res.is_err() {
+        info!("tls.open get error : {:?}", res);
+        return Err(res.err().unwrap());
+    }
+
+    Ok(tls)
+}
+
 pub fn provisioning_http_client(task: &Task) -> core::result::Result<usize, embedded_tls::TlsError> {
 
     const DEFAULT_GET_REQUEST: &[u8; 30] = b"GET /kbs/v0/hello HTTP/1.1\r\n\r\n";
@@ -1410,45 +1634,46 @@ pub fn provisioning_http_client(task: &Task) -> core::result::Result<usize, embe
         return Err(embedded_tls::TlsError::ConnectionClosed);
     }
 
-    let client = ShieldProvisioningHttpSClient::init(socket_to_sm.unwrap(), 30000, 10000);   // ~30 Mib
+    let mut client = ShieldProvisioningHttpSClient::init(socket_to_sm.unwrap(), 30000, 10000);   // ~30 Mib
 
-    let mut read_record_buffer = [0; 16384];
-    let mut write_record_buffer = [0; 16384];
+    let mut read_record_buffer : [u8; 16384]= [0; 16384];
+    let mut write_record_buffer  :[u8; 16384]= [0; 16384];
     let mut rng = OsRng;
 
-    // TODO: figur out the server name
-    let config = TlsConfig::new().enable_rsa_signatures();
-
-    let mut tls: TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSha256> = TlsConnection::new(client, &mut read_record_buffer, &mut write_record_buffer);
-
-
-    // TODO: add verrifyer to verify the server certificate
-    let res = tls.open::<OsRng, NoVerify>(TlsContext::new(&config, &mut rng,));
-    if res.is_err() {
-        info!("tls.open get error : {:?}", res);
-        return Err(res.err().unwrap());
+    let tls = set_up_tls(&client, &mut read_record_buffer, &mut write_record_buffer, &mut rng);
+    if tls.is_err() {
+        let err = tls.err().unwrap();
+        info!("provisioning_http_client set_up_tls get error: {:?}", err);
+        return Err(err);
     }
+    let mut tls = tls.unwrap();
 
-    let res = tls.write(DEFAULT_GET_REQUEST);
+    // attestation phase 1.1a: auth
+    let auth_http_req = client.prepair_post_auth_http_req(attestation_protocol_version.to_string(), Tee::Snp , "".to_string());
+    let mut rx_buf = [0; 4096];
+    let res = send_http_request_to_sm(&mut tls, auth_http_req, &mut rx_buf);
     if res.is_err() {
-        info!(" tls.write get error : {:?}", res);
+        info!("provisioning_http_client, attestation phase 1: auth send_http_request_to_sm get error: {:?}", res);
         return res;
     }
 
-    //all number literals except the byte literal allow a type suffix, such as 57u8
-   // So 0u8 is the number 0 as an unsigned 8-bit integer.
-    let mut rx_buf = [0; 4096];
-    let resp_len = tls.read(&mut rx_buf);
-    if resp_len.is_err() {
-        info!("tls.read get error : {:?}", resp_len);
-        return resp_len;
+    let resp_len = res.unwrap();
+    let http_get_resp = String::from_utf8_lossy(&rx_buf[..resp_len as usize]).to_string();
+    info!("provisioning_https_client http post resp: {}, resp_len {}", http_get_resp, resp_len);
+
+    // attestation phase 1.1b: parse auth response
+    let res = client.parse_auth_http_resp(&rx_buf[..resp_len as usize]);
+    if res.is_err() {
+        info!("provisioning_http_client, attestation phase 1: parse auth response get error: {:?}", res);
+        return Err( embedded_tls::TlsError::DecodeError);
     }
 
-    let resp_len = resp_len.unwrap();
-    assert!(resp_len > 0);
+    // attestation phase 1.2a: sent attest req
 
-    let http_get_resp = String::from_utf8_lossy(&rx_buf[..resp_len as usize]).to_string();
+    // attestation phase 1.2b: parse attest response
 
-    info!("provisioning_https_client http get resp: {}", http_get_resp);
+
+    // attestation phase 2 get resource, policy, secret, signing key
+
     Ok(resp_len)
 }

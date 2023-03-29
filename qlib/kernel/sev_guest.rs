@@ -202,7 +202,7 @@ pub enum AeadAlgo {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TcbVersion {
     pub boot_loader: u8,
     pub tee: u8,

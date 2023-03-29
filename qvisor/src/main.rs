@@ -61,12 +61,6 @@ extern crate base64ct;
 
 extern crate modular_bitfield;
 extern crate p384;
-extern crate httparse;
-
-
-// use sev::launch::snp::*;
-// use sev::firmware::guest;
-
 
 #[macro_use]
 pub mod asm;

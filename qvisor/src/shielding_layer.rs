@@ -1027,8 +1027,8 @@ pub fn provisioning_http_client(task: &Task) -> Result<i64> {
     pMsg.msgName = 0;
     pMsg.nameLen = 0;
 
-    let mut deadline = None;
-    let mut flags = 0 as i32;
+    let deadline = None;
+    let flags = 0 as i32;
 
 
 

@@ -64,6 +64,7 @@ extern crate httparse;
 extern crate embedded_tls;
 extern crate embedded_io;
 extern crate log;
+extern crate rsa;
 
 #[macro_use]
 mod print;
@@ -550,8 +551,6 @@ fn StartExecProcess(fd: i32, process: Process) -> ! {
 fn StartSubContainerProcess(elfEntry: u64, userStackAddr: u64, kernelStackAddr: u64) -> ! {
     let currTask = Task::Current();
     currTask.AccountTaskEnter(SchedState::RunningApp);
-
-    GUEST_SEV_DEV.write().get_report();
 
     EnterUser(elfEntry, userStackAddr, kernelStackAddr);
 }

@@ -100,12 +100,6 @@ impl Config {
     }
 }
 
-
-fn vec_to_array<T, const N: usize>(v: Vec<T>) -> [T; N] {
-    v.try_into()
-        .unwrap_or_else(|v: Vec<T>| panic!("Expected a Vec of length {} but it was {}", N, v.len()))
-}
-
 impl sev_guest::AttestationReport {
     pub const REPORT_FILE: &'static str = "/etc/quark/sev_snp_guest_attestation_report.bin";
 

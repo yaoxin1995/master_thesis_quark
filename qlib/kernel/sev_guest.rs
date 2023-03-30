@@ -13,6 +13,11 @@ use alloc::string::ToString;
 use spin::rwlock::RwLock;
 use super::SHARESPACE;
 use super::Kernel::HostSpace;
+use sha2::{Sha512, Digest};
+use base64ct::{Base64, Encoding};
+use alloc::string::String;
+use crate::shielding_layer::Tee;
+use core::convert::TryInto;
 
 
 const MAX_AUTHTAG_LEN: usize = 32;
@@ -495,21 +500,24 @@ impl SnpGuestDev {
 		Ok(report)
  	}
 
+	pub fn get_report(&mut self, report_data: String) -> Result<String> {
 
+		info!("get_report, report data: {:?}", report_data);
 
-	pub fn get_report(&mut self) -> AttestationReport {
+		let mut report_data_bin = Base64::decode_vec(&report_data)
+														.map_err(|e| Error::Common(format!("get_report, Base64::decode_vec failed: {:?}", e)))?;
+        if report_data_bin.len() != 64 {
+            return Err(Error::Common(format!(
+                "SEV SNP Attester: Report data should be SHA512 base64 String"
+            )));
+        }
 
-		info!("get_report");
-
-		let mut arr = [0; 64];
-		let mut rng = OsRng;
-		rng.fill_bytes(&mut arr);
 		let mut fw_err = 0;
-	
-		info!("arr: {:?}", arr);
+		
+		let user_data = vec_to_array(report_data_bin);
 	
 		let req = SnpReportReq {
-			user_data: arr,
+			user_data: user_data,
 			vmpl: 0,
 			rsvd: [0; 28],
 		};
@@ -528,12 +536,31 @@ impl SnpGuestDev {
 		
 		let report = self.handle_guest_request(MSG_VERSION, MsgType::SnpMsgReportReq, &mut req_buf, &mut fw_err).unwrap();
 
-		return report;
-	
+		serde_json::to_string(&report)
+			.map_err(|e| Error::Common(format!("Serialize SEV SNP evidence/report failed: {:?}", e)))
 	}
-    
+
+	// Returns a base64 of the sha512 of all chunks.
+	pub fn hash_chunks(&self, chunks: Vec<Vec<u8>>) -> String {
+    	let mut hasher = Sha512::new();
+
+    	for chunk in chunks.iter() {
+        	hasher.update(chunk);
+    	}
+
+    	let res = hasher.finalize();
+
+		let base64 = Base64::encode_string(&res);
+
+		base64
+	} 
 }
 
+
+fn vec_to_array<T, const N: usize>(v: Vec<T>) -> [T; N] {
+    v.try_into()
+        .unwrap_or_else(|v: Vec<T>| panic!("Expected a Vec of length {} but it was {}", N, v.len()))
+}
 
 
 fn get_vmpck(id: u32) -> [u8; VMPCK_KEY_LEN] {
@@ -578,4 +605,10 @@ fn snp_get_msg_seqno() -> u64 {
 	}
 
 	return count;
+}
+
+// Detect which TEE platform the KBC running environment is.
+pub fn detect_tee_type() -> Tee {
+	// Now assume we are running on amd sev snp
+	Tee::Snp
 }

@@ -257,8 +257,25 @@ pub fn ControlMsgHandler(fd: *const u8) {
             let is_allowd;
             {
                 is_allowd = EXEC_AUTH_AC.write().exec_req_authentication(AuthAcCheckArgs);
-                let report = GUEST_SEV_DEV.write().get_report();
 
+                let report;
+                {
+                    let mut attester = GUEST_SEV_DEV.write();
+                    // random user data for test
+                    let user_data = vec![
+                        "ramdeoasdjasidioafhaskfsajfbguieowslkjvbdhsdjsakfheuiolksncjkasfeuismakd".as_bytes().to_vec(),
+                        "1238129edjcakhvsjakjaskjsajlkjlksank".as_bytes().to_vec(),
+                    ];
+    
+                    let report_data = attester.hash_chunks(user_data);
+    
+                    report = attester.get_report(report_data);
+                    if  report.is_err() {
+                        error!(" get_report get error : {:?}", report);
+                    }
+                }
+ 
+                
                 let res = provisioning_http_client(task);
                 if res.is_err() {
                     error!(" provisioning_http_client get error : {:?}", res);

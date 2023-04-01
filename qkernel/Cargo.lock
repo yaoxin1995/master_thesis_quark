@@ -74,6 +74,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349a06037c7bf932dd7e7d1f653678b2038b9ad46a74102f1fc7bd7872678cce"
 
 [[package]]
+name = "base64"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3441f0f7b02788e948e47f457ca01f1d7e6d92c693bc132c22b087d3141c03ff"
+
+[[package]]
 name = "base64ct"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -628,6 +634,7 @@ version = "0.6.0"
 dependencies = [
  "aes-gcm",
  "aes-gcm-siv",
+ "base64",
  "base64ct",
  "bit_field",
  "bitflags",
@@ -654,6 +661,7 @@ dependencies = [
  "spin 0.9.2",
  "x86_64",
  "xmas-elf",
+ "zeroize",
 ]
 
 [[package]]

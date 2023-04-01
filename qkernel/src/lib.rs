@@ -68,6 +68,8 @@ extern crate httparse;
 extern crate embedded_io;
 extern crate log;
 extern crate rsa;
+extern crate base64;
+extern crate zeroize;
 
 #[macro_use]
 mod print;

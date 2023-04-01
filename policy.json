@@ -1,4 +1,6 @@
 {
+    "enable_policy_updata": true,
+
     "privileged_user_config" :{
         "enable_terminal": true,
         "enable_single_shot_command_line_mode": true,
@@ -33,11 +35,15 @@
         "cmd_arg": [
             "sh"
         ],
-        "secret_file_path":[
-            "/etc/conf1.d",
-            "/etc/conf2.d"
+        "config_fils":[
+            {
+                "file_path": "/etc/conf1.d",
+                "base64_file_content": "U0VWIFNlY3VyZSBOZXN0ZWQgUGFnaW5nIEZpcm13YXJlIEFCSSBTcGVjaWZpY2F0aW9uCjIuMyBWQ0VLClRoZSBWZXJzaW9uZWQgQ2hpcCBFbmRvcnNlbWVudCBLZXkgKFZDRUspIGlzIGFuIGF0dGVzdGF0aW9uIHNpZ25pbmcga2V5IGRlcml2ZWQgZnJvbSBjaGlwdW5pcXVlIHNlY3JldHMgYW5kIGEgVENCX1ZFUlNJT04uIFRoZSBWQ0VLIGNhbiBiZSBjb21wdXRlZCBmb3I="
+            },
+            {
+                "file_path": "/etc/conf1.d",
+                "base64_file_content": "U0VWIFNlY3VyZSBOZXN0ZWQgUGFnaW5nIEZpcm13YXJlIEFCSSBTcGVjaWZpY2F0aW9uCjIuMyBWQ0VLClRoZSBWZXJzaW9uZWQgQ2hpcCBFbmRvcnNlbWVudCBLZXkgKFZDRUspIGlzIGFuIGF0dGVzdGF0aW9uIHNpZ25pbmcga2V5IGRlcml2ZWQgZnJvbSBjaGlwdW5pcXVlIHNlY3JldHMgYW5kIGEgVENCX1ZFUlNJT04uIFRoZSBWQ0VLIGNhbiBiZSBjb21wdXRlZCBmb3I="
+            }
         ]
     }
-
-
 }

@@ -1,4 +1,4 @@
-MAKEFLAGS += -j8
+MAKEFLAGS += -j4
 
 all:: release debug
 

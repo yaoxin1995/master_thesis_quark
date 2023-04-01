@@ -3,8 +3,6 @@ use alloc::string::{String};
 use alloc::vec::Vec;
 use crate::shielding_layer::*;
 
-
-
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub enum StdioType {
     #[default]
@@ -71,15 +69,23 @@ pub struct SingleShotCommandLineModeConfig {
     pub allowed_dir: Vec<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct ConfigFile {
+    pub file_path: String,
+    pub base64_file_content: String,
+}
+
+
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub struct Secret {
     pub env_variables: Vec<String>,
     pub cmd_arg: Vec<String>,
-    pub secret_file_path: Vec<String>,
+    pub config_fils: Vec<ConfigFile>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Policy {
+    pub enable_policy_updata: bool,
     pub privileged_user_config: PrivilegedUserConfig,
     pub unprivileged_user_config:  UnprivilegedUserConfig,
     pub hmac_key_slice: String,

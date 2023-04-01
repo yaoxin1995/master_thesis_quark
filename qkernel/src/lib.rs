@@ -45,6 +45,7 @@ extern crate lazy_static;
 extern crate postcard;
 extern crate aes_gcm;
 extern crate getrandom;
+extern crate zeroize;
 
 #[macro_use]
 extern crate scopeguard;
@@ -68,8 +69,6 @@ extern crate httparse;
 extern crate embedded_io;
 extern crate log;
 extern crate rsa;
-extern crate base64;
-extern crate zeroize;
 
 #[macro_use]
 mod print;

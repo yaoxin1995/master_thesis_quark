@@ -64,6 +64,9 @@ extern crate httparse;
 extern crate embedded_tls;
 extern crate embedded_io;
 extern crate log;
+extern crate rsa;
+extern crate base64;
+extern crate zeroize;
 
 #[macro_use]
 mod print;
@@ -106,8 +109,6 @@ use self::qlib::kernel::TSC;
 use crate::qlib::kernel::GlobalIOMgr;
 
 use self::qlib::kernel::vcpu::*;
-use log::max_level;
-//use qlib::kernel::Kernel::HostSpace;
 use vcpu::CPU_LOCAL;
 
 use core::panic::PanicInfo;
@@ -116,11 +117,8 @@ use core::{mem, ptr};
 use qlib::mutex::*;
 use spin::mutex::Mutex;
 
-//use linked_list_allocator::LockedHeap;
-//use buddy_system_allocator::LockedHeap;
 use self::qlib::{ShareSpaceRef, SysCallID};
 use taskMgr::{CreateTask, IOWait, WaitFn};
-//use self::qlib::buddyallocator::*;
 use self::asm::*;
 use self::boot::controller::*;
 use self::boot::loader::*;
@@ -142,7 +140,6 @@ use self::threadmgr::task_sched::*;
 use self::qlib::kernel::Scale;
 use self::qlib::kernel::VcpuFreqInit;
 use self::quring::*;
-use self::qlib::kernel::sev_guest::*;
 
 
 
@@ -550,8 +547,6 @@ fn StartExecProcess(fd: i32, process: Process) -> ! {
 fn StartSubContainerProcess(elfEntry: u64, userStackAddr: u64, kernelStackAddr: u64) -> ! {
     let currTask = Task::Current();
     currTask.AccountTaskEnter(SchedState::RunningApp);
-
-    GUEST_SEV_DEV.write().get_report();
 
     EnterUser(elfEntry, userStackAddr, kernelStackAddr);
 }

@@ -1862,7 +1862,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "059a34f111a9dee2ce1ac2826a68b24601c4298cfeb1a587c3cb493d5ab46f52"
 dependencies = [
  "libc",
- "nix 0.23.1",
+ "nix 0.26.2",
 ]
 
 [[package]]
@@ -1978,7 +1978,6 @@ dependencies = [
  "getrandom 0.2.5",
  "hex-literal",
  "hmac",
- "httparse",
  "kvm-bindings",
  "kvm-ioctls",
  "lazy_static",

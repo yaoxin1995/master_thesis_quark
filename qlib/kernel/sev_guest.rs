@@ -13,6 +13,11 @@ use alloc::string::ToString;
 use spin::rwlock::RwLock;
 use super::SHARESPACE;
 use super::Kernel::HostSpace;
+use sha2::{Sha512, Digest};
+use base64ct::{Base64, Encoding};
+use alloc::string::String;
+use crate::shielding_layer::Tee;
+use core::convert::TryInto;
 
 
 const MAX_AUTHTAG_LEN: usize = 32;
@@ -202,7 +207,7 @@ pub enum AeadAlgo {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TcbVersion {
     pub boot_loader: u8,
     pub tee: u8,
@@ -213,38 +218,38 @@ pub struct TcbVersion {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct SnpAttestationReportSignature {
-	pub r: [u8; 72],
-	pub s: [u8; 72],
-	pub reserved: [u8; 368],
+	pub r: Vec<u8>, // 72 bytes,
+	pub s: Vec<u8>, //72 bytes,
+	pub reserved: Vec<u8>,  // 368 bytes,
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct AttestationReport {
 	pub version: u32,		/* 0x000 */
 	pub guest_svn: u32,	/* 0x004 */
 	pub policy: u64,			/* 0x008 */
-	pub family_id: [u8; 16],		/* 0x010 */
-	pub image_id: [u8; 16],			/* 0x020 */
+	pub family_id: Vec<u8>, /* 16 bytes, 0x010 */
+	pub image_id: Vec<u8>, /*16 bytes, 0x020 */
 	pub vmpl: u32,				/* 0x030 */
 	pub signature_algo: u32,		/* 0x034 */
-	pub platform_version: TcbVersion,		/* 0x038 */
+	pub platform_version: TcbVersion,  /* 0x038 */
 	pub platform_info: u64,		/* 0x040 */
 	pub flags: u32,			/* 0x048 */
 	pub reserved0: u32,		/* 0x04C */
-	pub report_data: [u8; 64],		/* 0x050 */
-	pub measurement: [u8; 48],	/* 0x090 */
-	pub host_data: [u8 ;32],		/* 0x0C0 */
-	pub id_key_digest: [u8; 48],		/* 0x0E0 */
-	pub author_key_digest: [u8; 48],	/* 0x110 */
-	pub report_id: [u8; 32],		/* 0x140 */
-	pub report_id_ma: [u8; 32],		/* 0x160 */
-	pub reported_tcb: TcbVersion,			/* 0x180 */
-	pub reserved1: [u8; 24],		/* 0x188 */
-	pub chip_id: [u8; 64],			/* 0x1A0 */
-	pub reserved2: [u8; 192],		/* 0x1E0 */
+	pub report_data: Vec<u8>, /*64 bytes, 0x050 */
+	pub measurement: Vec<u8>, 	/*48 bytes, 0x090 */
+	pub host_data: Vec<u8>, /*32 bytes, 0x0C0 */
+	pub id_key_digest: Vec<u8>, /*48 bytes, 0x0E0 */
+	pub author_key_digest: Vec<u8>, /*48 bytes, 0x110 */
+	pub report_id: Vec<u8>, /*32 bytes, 0x140 */
+	pub report_id_ma: Vec<u8>, 	/*32 bytes, 0x160 */
+	pub reported_tcb: TcbVersion,	/* 0x180 */
+	pub reserved1: Vec<u8>, /*24 bytes, 0x188 */
+	pub chip_id: Vec<u8>, /*64 bytes, 0x1A0 */
+	pub reserved2: Vec<u8>, /*192 bytes, 0x1E0 */
 	pub signature: SnpAttestationReportSignature  /* 0x2A0 */
 }
 
@@ -495,21 +500,24 @@ impl SnpGuestDev {
 		Ok(report)
  	}
 
+	pub fn get_report(&mut self, report_data: String) -> Result<String> {
 
+		info!("get_report, report data: {:?}", report_data);
 
-	pub fn get_report(&mut self) -> AttestationReport {
+		let mut report_data_bin = Base64::decode_vec(&report_data)
+														.map_err(|e| Error::Common(format!("get_report, Base64::decode_vec failed: {:?}", e)))?;
+        if report_data_bin.len() != 64 {
+            return Err(Error::Common(format!(
+                "SEV SNP Attester: Report data should be SHA512 base64 String"
+            )));
+        }
 
-		info!("get_report");
-
-		let mut arr = [0; 64];
-		let mut rng = OsRng;
-		rng.fill_bytes(&mut arr);
 		let mut fw_err = 0;
-	
-		info!("arr: {:?}", arr);
+		
+		let user_data = vec_to_array(report_data_bin);
 	
 		let req = SnpReportReq {
-			user_data: arr,
+			user_data: user_data,
 			vmpl: 0,
 			rsvd: [0; 28],
 		};
@@ -528,12 +536,31 @@ impl SnpGuestDev {
 		
 		let report = self.handle_guest_request(MSG_VERSION, MsgType::SnpMsgReportReq, &mut req_buf, &mut fw_err).unwrap();
 
-		return report;
-	
+		serde_json::to_string(&report)
+			.map_err(|e| Error::Common(format!("Serialize SEV SNP evidence/report failed: {:?}", e)))
 	}
-    
+
+	// Returns a base64 of the sha512 of all chunks.
+	pub fn hash_chunks(&self, chunks: Vec<Vec<u8>>) -> String {
+    	let mut hasher = Sha512::new();
+
+    	for chunk in chunks.iter() {
+        	hasher.update(chunk);
+    	}
+
+    	let res = hasher.finalize();
+
+		let base64 = Base64::encode_string(&res);
+
+		base64
+	} 
 }
 
+
+fn vec_to_array<T, const N: usize>(v: Vec<T>) -> [T; N] {
+    v.try_into()
+        .unwrap_or_else(|v: Vec<T>| panic!("Expected a Vec of length {} but it was {}", N, v.len()))
+}
 
 
 fn get_vmpck(id: u32) -> [u8; VMPCK_KEY_LEN] {
@@ -578,4 +605,10 @@ fn snp_get_msg_seqno() -> u64 {
 	}
 
 	return count;
+}
+
+// Detect which TEE platform the KBC running environment is.
+pub fn detect_tee_type() -> Tee {
+	// Now assume we are running on amd sev snp
+	Tee::Snp
 }

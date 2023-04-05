@@ -41,8 +41,8 @@ use crate::qlib::linux::signal::*;
 
 use super::super::super::super::kernel_def::*;
 
-use super::super::super::super::shielding_layer::*;
-use crate::qlib::kernel::sev_guest::*;
+use crate::shield::{terminal_shield::*, exec_shield::*, https_attestation_provisioning_cli::provisioning_http_client};
+use crate::shield::sev_guest::*;
 
 
 

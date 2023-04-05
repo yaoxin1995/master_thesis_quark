@@ -20,7 +20,7 @@ use super::super::kernel::util::cstring::*;
 use super::super::linux_def::*;
 use super::super::socket_buf::*;
 use super::super::task_mgr::*;
-use super::super::kernel::sev_guest::*;
+use crate::shield::sev_guest::*;
 
 #[repr(align(128))]
 #[derive(Clone, Debug)]

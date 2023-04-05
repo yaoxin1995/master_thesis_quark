@@ -74,7 +74,7 @@ use crate::qlib::kernel::fs::tty::slave::SlaveInodeOperations;
 use crate::qlib::kernel::kernel::pipe::node::PipeIops;
 use crate::qlib::kernel::socket::unix::unix::UnixSocketInodeOps;
 use crate::qlib::kernel::fs::secretfs::dir_proc::SecDirNode;
-use crate::shielding_layer::*;
+use crate::shield::inode_tracker::*;
 
 pub fn ContextCanAccessFile(task: &Task, inode: &Inode, reqPerms: &PermMask) -> Result<bool> {
     let creds = task.creds.clone();

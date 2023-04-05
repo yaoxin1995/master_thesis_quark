@@ -63,7 +63,7 @@ impl Deref for ProcNode {
 
 impl SecretDirDataNodeTrait for ProcNode {
     fn Lookup(&self, d: &Dir, task: &Task, dir: &Inode, name: &str) -> Result<Dirent> {
-        let err = match d.Lookup(task, dir, name) {
+        match d.Lookup(task, dir, name) {
             Ok(dirent) => {
                 info!("SecretDirDataNodeTrait lookup {}", dirent.Name());
                 return Ok(dirent);

@@ -93,9 +93,7 @@ use self::kernel::timer::*;
 mod qlib;
 
 
-pub mod shielding_layer;
 
-use self::shielding_layer::*;
 use self::kernel_def::*;
 use self::loader::vdso::*;
 //use linked_list_allocator::LockedHeap;
@@ -140,17 +138,18 @@ use self::quring::*;
 use self::syscalls::syscalls::*;
 use self::task::*;
 use self::threadmgr::task_sched::*;
+use self::shield::*;
 
 #[macro_use]
 mod interrupt;
 pub mod kernel_def;
 pub mod rdma_def;
 mod syscalls;
-
+pub mod shield;
 //use self::heap::QAllocator;
 //use qlib::mem::bitmap_allocator::BitmapAllocatorWrapper;
 // use shielding_layer::*;
-use self::qlib::kernel::sev_guest::*;
+// use self::qlib::kernel::sev_guest::*;
 use ssh_key::PrivateKey;
 
 

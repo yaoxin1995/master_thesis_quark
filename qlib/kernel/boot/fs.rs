@@ -46,6 +46,7 @@ const PROCFS: &str = "proc";
 const SYSFS: &str = "sysfs";
 const TMPFS: &str = "tmpfs";
 const NONEFS: &str = "none";
+const SECRETFS: &str = "secret";
 
 fn CreateRootMount(
     task: &Task,
@@ -104,7 +105,7 @@ fn GetMountNameAndOptions(_conf: &config::Config, m: &oci::Mount) -> Result<(Str
     let mut opts = Vec::new();
 
     match m.typ.as_str() {
-        DEVPTS | DEVTMPFS | PROCFS | SYSFS => {
+        DEVPTS | DEVTMPFS | PROCFS | SYSFS | SECRETFS=> {
             fsName = m.typ.to_string();
         }
         NONEFS => {
@@ -211,6 +212,13 @@ fn CompileMounts(spec: &oci::Spec) -> Vec<oci::Mount> {
         options: Vec::new(),
     });
 
+    mounts.push(oci::Mount {
+        destination: "/secret".to_string(),
+        typ: SECRETFS.to_string(),
+        source: "".to_string(),
+        options: Vec::new(),
+    });
+
     /*mounts.push(oci::Mount {
         destination: "/tmp".to_string(),
         typ: TMPFS.to_string(),
@@ -289,6 +297,8 @@ fn MakeMountPoint(task: &Task, mns: &MountNs, root: &Dirent, path: &str) -> Resu
         &mut remainingTraversals,
         true,
     );
+
+    info!("MakeMountPoint path {:?}, res is ok {:?}", path, res.is_ok());
 
     match res {
         Ok(_) => {

@@ -1139,6 +1139,7 @@ impl InodeOperations for HostInodeOp {
         _name: &str,
         _perm: &FilePermissions,
     ) -> Result<()> {
+        info!("HostInodeOp  CreateDirectory");
         return Err(Error::SysError(SysErr::ENOTDIR));
     }
 

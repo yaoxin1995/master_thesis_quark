@@ -17,7 +17,6 @@ use alloc::vec::Vec;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use kvm_ioctls::Kvm;
 use std::fs;
-use std::convert::TryInto;
 
 use super::super::super::qlib::common::*;
 use super::super::super::qlib::config::*;

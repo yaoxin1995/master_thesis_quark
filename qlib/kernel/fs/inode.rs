@@ -73,6 +73,7 @@ use crate::qlib::kernel::fs::tty::master::MasterInodeOperations;
 use crate::qlib::kernel::fs::tty::slave::SlaveInodeOperations;
 use crate::qlib::kernel::kernel::pipe::node::PipeIops;
 use crate::qlib::kernel::socket::unix::unix::UnixSocketInodeOps;
+use crate::qlib::kernel::fs::secretfs::dir_proc::SecDirNode;
 use crate::shielding_layer::*;
 
 pub fn ContextCanAccessFile(task: &Task, inode: &Inode, reqPerms: &PermMask) -> Result<bool> {
@@ -150,7 +151,8 @@ pub enum IopsType {
     SimpleFileInode,
     ProxyDevice,
     NvFrontendDevice,
-    UvmDevice
+    UvmDevice,
+    SecDirNode
 }
 
 #[enum_dispatch]
@@ -184,6 +186,7 @@ pub enum Iops {
     SlaveInodeOperations(SlaveInodeOperations),
     PipeIops(PipeIops),
     UnixSocketInodeOps(UnixSocketInodeOps),
+    SecDirNode(SecDirNode),
 }
 
 impl Iops {

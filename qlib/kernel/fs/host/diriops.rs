@@ -340,7 +340,7 @@ impl InodeOperations for HostDirOp {
 
     fn Lookup(&self, task: &Task, parent: &Inode, name: &str) -> Result<Dirent> {
 
-        info!("open host file: {:?}", name);
+        info!("HostDirOp open host file: {:?}", name);
         let (fd, writeable, fstat) = match TryOpenAt(self.HostFd(), name) {
             Err(Error::SysError(SysErr::ENOENT)) => {
                 let inode = match self.lock().overrides.get(name) {
@@ -406,6 +406,7 @@ impl InodeOperations for HostDirOp {
         name: &str,
         perm: &FilePermissions,
     ) -> Result<()> {
+        info!("HostDirOp CreateDirectory host dir: {:?}", name);
         let owner = task.FileOwner();
 
         let ret = Mkdirat(

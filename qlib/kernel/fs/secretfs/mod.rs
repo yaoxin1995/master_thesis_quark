@@ -12,39 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod dirent;
-pub mod file;
+
+
+use crate::qlib::mutex::*;
+use alloc::sync::Arc;
+use super::filesystems::*;
+
+pub mod fs;
+pub mod proc;
+pub mod meminfo;
 pub mod inode;
-//pub mod inodeOperations;
-pub mod anon;
-pub mod attr;
-pub mod copy_up;
-pub mod dentry;
-pub mod dev;
-pub mod file_overlay;
-pub mod filesystems;
-pub mod flags;
-pub mod fsutil;
-pub mod host;
-pub mod inode_overlay;
-pub mod inotify;
-pub mod lock;
-pub mod mount;
-pub mod mount_overlay;
-pub mod overlay;
-pub mod procfs;
-pub mod ramfs;
-pub mod sys;
-pub mod timerfd;
-pub mod tmpfs;
-pub mod tty;
-pub mod secretfs;
+pub mod dir_proc;
+
 
 pub fn Init() {
-    self::tty::Init();
-    self::dev::Init();
-    self::procfs::Init();
-    self::sys::Init();
-    self::tmpfs::Init();
-    self::secretfs::Init();
+    RegisterFilesystem(&Arc::new(QMutex::new(self::fs::SecretFileSystem {})));
 }

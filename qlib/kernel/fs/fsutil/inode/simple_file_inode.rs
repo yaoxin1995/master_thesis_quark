@@ -55,6 +55,7 @@ use crate::qlib::kernel::fs::procfs::task::uid_pid_map::IdMapSimpleFileTrait;
 use crate::qlib::kernel::fs::procfs::uptime::UptimeInode;
 use crate::qlib::kernel::fs::sys::devices::PossibleData;
 use crate::qlib::kernel::socket::unix::unix::Dummy;
+use crate::qlib::kernel::fs::secretfs::meminfo::SecretinfoInode;
 
 #[enum_dispatch(SimpleFileImpl)]
 pub trait SimpleFileTrait: Send + Sync {
@@ -92,6 +93,7 @@ pub enum SimpleFileImpl {
     StatusData(StatusData),
     IdMapSimpleFileTrait(IdMapSimpleFileTrait),
     PossibleData(PossibleData),
+    SecretinfoInode(SecretinfoInode),
     Dummy(Dummy),
 }
 

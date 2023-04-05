@@ -1926,17 +1926,15 @@ fn set_up_tls<'a>(client: &'a ShieldProvisioningHttpSClient, read_record_buffer:
     Ok(tls)
 }
 
-pub fn provisioning_http_client(task: &Task) -> core::result::Result<usize, embedded_tls::TlsError> {
+pub fn provisioning_http_client(task: &Task) -> Result<usize> {
 
     log::trace!("provisioning_http_client start");
 
-    let socket_to_sm = get_socket(task, SECRET_MANAGER_IP, SECRET_MANAGER_PORT);
-    if socket_to_sm.is_err() {
-        info!("get_socket get error");
-        return Err(embedded_tls::TlsError::ConnectionClosed);
-    }
+    let socket_to_sm = get_socket(task, SECRET_MANAGER_IP, SECRET_MANAGER_PORT)
+        .map_err(|e| Error::Common(format!("provisioning_http_client get_socket get error {:?}", e)))?;
 
-    let mut client = ShieldProvisioningHttpSClient::init(socket_to_sm.unwrap(), 30000, 10000);   // ~30 Mib
+
+    let mut client = ShieldProvisioningHttpSClient::init(socket_to_sm, 30000, 10000);   // ~30 Mib
 
     let mut read_record_buffer : [u8; 16384]= [0; 16384];
     let mut write_record_buffer  :[u8; 16384]= [0; 16384];
@@ -1944,80 +1942,55 @@ pub fn provisioning_http_client(task: &Task) -> core::result::Result<usize, embe
     let mut rng = OsRng;
 
     let client_clone = client.clone();
-    let tls = set_up_tls(&client_clone, &mut read_record_buffer, &mut write_record_buffer, &mut rng);
-    if tls.is_err() {
-        let err = tls.err().unwrap();
-        info!("provisioning_http_client set_up_tls get error: {:?}", err);
-        return Err(err);
-    }
-    let mut tls = tls.unwrap();
+    let mut tls = set_up_tls(&client_clone, &mut read_record_buffer, &mut write_record_buffer, &mut rng)
+        .map_err(|e| Error::Common(format!("provisioning_http_client set_up_tls get error {:?}", e)))?;
 
     // attestation phase 1.1a: auth
     let auth_http_req = client.prepair_post_auth_http_req();
     let mut rx_buf = [0; 4096];
-    let res = send_http_request_to_sm(&mut tls, auth_http_req, &mut rx_buf);
-    if res.is_err() {
-        info!("provisioning_http_client, attestation phase 1.1a: auth send_http_request_to_sm get error: {:?}", res);
-        return res;
-    }
-
-    let resp_len = res.unwrap();
+    let resp_len = send_http_request_to_sm(&mut tls, auth_http_req, &mut rx_buf)
+        .map_err(|e| Error::Common(format!("provisioning_http_client send_http_request_to_sm get error {:?}", e)))?;
     let http_get_resp = String::from_utf8_lossy(&rx_buf[..resp_len as usize]).to_string();
     info!("provisioning_https_client auth resp: {}, resp_len {}", http_get_resp, resp_len);
 
     // attestation phase 1.1b: parse auth response
-    let res = client.parse_auth_http_resp(&rx_buf[..resp_len as usize]);
-    if res.is_err() {
-        info!("provisioning_http_client, attestation phase 1: parse auth response get error: {:?}", res);
-        return Err( embedded_tls::TlsError::DecodeError);
-    }
+    client.parse_auth_http_resp(&rx_buf[..resp_len as usize])
+        .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 1: parse auth response get error {:?}", e)))?;
 
     // attestation phase 1.2a: sent attest req
-    let post_http_attest_req = client.prepair_post_attest_http_req();
-    if post_http_attest_req.is_err() {
-        info!("provisioning_http_client, attestation phase 1.2a: sent attest req to sm get error: {:?}", post_http_attest_req);
-        return Err(embedded_tls::TlsError::DecodeError);
-    }
+    let post_http_attest_req = client.prepair_post_attest_http_req()
+        .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 1.2a: sent attest req to sm get error {:?}", e)))?;
 
     let mut rx_buf = [0; 4096];
-    let res = send_http_request_to_sm(&mut tls, post_http_attest_req.unwrap(), &mut rx_buf);
-    if res.is_err() {
-        info!("provisioning_http_client, attestation phase 1.2a: sent attest req to sm get error: {:?}", res);
-        return res;
-    }
+    let resp_len = send_http_request_to_sm(&mut tls, post_http_attest_req, &mut rx_buf)
+        .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 1.2a: sent attest req to sm get error:{:?}", e)))?;
 
-    let resp_len = res.unwrap();
     let http_get_resp = String::from_utf8_lossy(&rx_buf[..resp_len as usize]).to_string();
     info!("provisioning_https_client attest resp: {}, resp_len {}", http_get_resp, resp_len);
 
     // attestation phase 1.2b: parse attest response
+    client.parse_attest_http_resp(&rx_buf[..resp_len as usize])
+        .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 1: parse auth response get error {:?}", e)))?;
 
-    let res = client.parse_attest_http_resp(&rx_buf[..resp_len as usize]);
-    if res.is_err() {
-        info!("provisioning_http_client, attestation phase 1: parse auth response get error: {:?}", res);
-        return Err( embedded_tls::TlsError::DecodeError);
-    }
     // attestation phase 2 get resource, policy, secret, signing key
-
     // let's get the policy first
     // TODO: get url from ymal
     let get_resource_http = client.prepair_get_resource_http_req("default/test_resources/test".to_string());
     let mut rx_buf = [0; 4096];
-    let res = send_http_request_to_sm(&mut tls, get_resource_http, &mut rx_buf);
-    if res.is_err() {
-        info!("provisioning_http_client, attestation phase 2: get resource get error: {:?}", res);
-        return res;
-    }
+    let resp_len = send_http_request_to_sm(&mut tls, get_resource_http, &mut rx_buf)
+        .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 2: get resource get error: {:?}", e)))?;
 
-    let resp_len = res.unwrap();
-    let res = client.parse_http_get_resource_resp(&rx_buf[..resp_len as usize]);
-    if res.is_err() {
-        info!("provisioning_http_client, attestation phase 2: parse resp get error: {:?}", res);
-        return Err( embedded_tls::TlsError::DecodeError);
-    }
+    let secret = client.parse_http_get_resource_resp(&rx_buf[..resp_len as usize])
+        .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 2: parse resp get error: {:?}", e)))?;
 
-    let http_get_resp = String::from_utf8_lossy(&res.unwrap()).to_string();
+    let http_get_resp = String::from_utf8_lossy(&secret).to_string();
     info!("provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, resp_len);
+
+    let bytes = base64::decode(secret)
+        .map_err(|e| Error::Common(format!("base64::decode failed to get secret {:?}", e)))?;
+    let policy: Policy = serde_json::from_slice(&bytes).map_err(|e| Error::Common(format!("serde_json::from_slice failed to get secret {:?}", e)))?;
+
+    info!("policy for kbs {:?}", policy);
 
     Ok(0)
 }

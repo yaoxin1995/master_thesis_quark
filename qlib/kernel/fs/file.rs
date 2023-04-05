@@ -83,6 +83,7 @@ use crate::qlib::kernel::socket::hostinet::uring_socket::UringSocketOperations;
 use crate::qlib::kernel::socket::unix::unix::UnixSocketOperations;
 use crate::qlib::shield_policy::*;
 use crate::shielding_layer::*;
+use crate::qlib::kernel::fs::secretfs::proc::SecretFile;
 
 
 use super::attr::*;
@@ -308,7 +309,8 @@ pub enum FileOpsType {
     InotifyFileOperations,
     ProxyFileOperations,
     NvFrontendFileOptions,
-    UvmFileOptions
+    UvmFileOptions,
+    SecretFile
 }
 
 #[derive(Clone)]
@@ -352,7 +354,8 @@ pub enum FileOps {
     UnixSocketOperations(UnixSocketOperations),
     RootProcFile(RootProcFile),
     NvFrontendFileOptions(NvFrontendFileOptions),
-    UvmFileOptions(UvmFileOptions)
+    UvmFileOptions(UvmFileOptions),
+    SecretFile(SecretFile)
 }
 
 impl FileOps {

@@ -79,7 +79,7 @@ use crate::qlib::kernel::socket::hostinet::uring_socket::UringSocketOperations;
 use crate::qlib::kernel::socket::hostinet::socket::SocketOperations;
 use crate::qlib::kernel::socket::hostinet::hostsocket::HostSocketOperations;
 use crate::qlib::kernel::socket::hostinet::asyncsocket::AsyncSocketOperations;
-use crate::shielding_layer::INODE_TRACKER;
+use crate::shield::inode_tracker::INODE_TRACKER;
 use crate::qlib::shield_policy::*;
 use crate::qlib::kernel::fs::secretfs::proc::SecretFile;
 

@@ -1,14 +1,13 @@
 use kvm_bindings::*;
 use kvm_ioctls::{VmFd};
 use super::super::super::qlib::common::*;
-use super::super::super::qlib::kernel::sev_guest::*;
+use crate::shield::sev_guest::*;
 use crate::{aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce, // Or `Aes128Gcm`
     Key,
 }};
-
-use crate::qlib::kernel::sev_guest;
+use crate::shield::sev_guest;
 //use p384::ecdsa::{signature::Signer, Signature, SigningKey};
 
 use crate::MOCK_ATTESTAION_REPORT;

@@ -34,7 +34,7 @@ use super::URING_MGR;
 use super::VMS;
 
 use super::POLICY;
-use super::qlib::kernel::sev_guest::*;
+use crate::shield::sev_guest::*;
 
 impl std::error::Error for Error {}
 

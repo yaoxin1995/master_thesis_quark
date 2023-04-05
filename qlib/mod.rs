@@ -97,7 +97,7 @@ use self::task_mgr::*;
 use self::hiber_mgr::*;
 
 use self::shield_policy::*;
-use self::kernel::sev_guest::*;
+use crate::shield::sev_guest::*;
 
 pub fn InitSingleton() {
     unsafe {

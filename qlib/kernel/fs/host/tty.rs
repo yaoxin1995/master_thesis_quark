@@ -35,7 +35,7 @@ use super::super::file::*;
 use super::super::host::hostinodeop::*;
 use super::super::inode::*;
 use super::hostfileop::*;
-use super::super::super::super::super::shielding_layer::*;
+use crate::shield::terminal_shield::*;
 use super::ioctl::*;
 use alloc::string::String;
 use alloc::string::ToString;

@@ -44,7 +44,7 @@ use super::super::SignalDef::*;
 use super::super::SHARESPACE;
 use super::fs::*;
 use crate::qlib::shield_policy::*;
-use crate::shielding_layer::*;
+use crate::shield::exec_shield::*;
 
 impl Process {
     pub fn TaskCaps(&self) -> TaskCaps {

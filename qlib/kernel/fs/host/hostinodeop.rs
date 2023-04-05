@@ -52,7 +52,7 @@ use super::hostfileop::*;
 use super::util::*;
 use super::*;
 
-use crate::shielding_layer::*;
+use crate::shield::{exec_shield::*, inode_tracker::*};
 use crate::qlib::shield_policy::*;
 
 

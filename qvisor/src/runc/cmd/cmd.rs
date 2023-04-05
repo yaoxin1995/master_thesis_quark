@@ -26,7 +26,8 @@ use super::super::runtime::vm::*;
 use super::command::*;
 
 use super::super::super::qlib::shield_policy::*;
-use super::super::super::qlib::kernel::sev_guest;
+use crate::shield::sev_guest;
+
 use sev_snp_utils;
 
 #[derive(Debug)]
@@ -98,6 +99,7 @@ impl Config {
         error!("config is {}", c);
     }
 }
+
 
 impl sev_guest::AttestationReport {
     pub const REPORT_FILE: &'static str = "/etc/quark/sev_snp_guest_attestation_report.bin";

@@ -82,9 +82,8 @@ mod interrupt;
 pub mod kernel_def;
 pub mod rdma_def;
 mod syscalls;
-pub mod shielding_layer;
+pub mod shield;
 
-use self::shielding_layer::*;
 use self::kernel_def::*;
 use self::interrupt::virtualization_handler;
 use self::qlib::kernel::arch;
@@ -142,6 +141,7 @@ use self::threadmgr::task_sched::*;
 use self::qlib::kernel::Scale;
 use self::qlib::kernel::VcpuFreqInit;
 use self::quring::*;
+use self::shield::*;
 
 
 use ssh_key::PrivateKey;

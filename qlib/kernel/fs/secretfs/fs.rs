@@ -63,6 +63,8 @@ impl Filesystem for SecretFileSystem {
 
         let msrc = MountSource::NewCachingMountSource(self, flags);
         let inode = NewSecret(task, &Arc::new(QMutex::new(msrc)), cgroups);
+
+        info!("secret file system mount return true");
         return Ok(inode);
     }
 

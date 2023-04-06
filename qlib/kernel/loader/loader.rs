@@ -34,6 +34,8 @@ use super::super::task::*;
 use super::elf::*;
 //use super::super::memmgr::mm::*;
 use super::interpreter::*;
+use crate::shield::secret_injection::SECRET_KEEPER;
+use super::super::SHARESPACE;
 
 // maxLoaderAttempts is the maximum number of attempts to try to load
 // an interpreter scripts, to prevent loops. 6 (initial + 5 changes) is
@@ -277,6 +279,7 @@ pub fn Load(
     argv: &mut Vec<String>,
     envv: &[String],
     extraAuxv: &[AuxEntry],
+    isSubContainer: bool
 ) -> Result<(u64, u64, u64)> {
     let vdsoAddr = LoadVDSO(task)?;
 
@@ -298,6 +301,33 @@ pub fn Load(
     let stackRange = CreateStack(task)?;
 
     let mut stack = Stack::New(stackRange.End());
+
+    if isSubContainer {
+            // book keep secret file
+        {
+
+            let mut secret_injector =  SECRET_KEEPER.write();
+            let policy;
+            unsafe {
+                policy  = SHARESPACE.k8s_policy.as_mut_ptr().as_ref().unwrap();
+            }
+
+            let res = secret_injector.bookkeep_file_based_secret(policy.secret.clone());
+            if res.is_err() {
+                info!("Load: failed to call file_based_secret_injection");
+            }
+        }
+
+        {
+            let secret_injector = SECRET_KEEPER.read();
+            secret_injector.inject_file_based_secret_to_secret_file_system(task);
+        }
+
+    }
+
+
+
+
 
     let usersp = SetupUserStack(
         task, &mut stack, &loaded, filename, &argv, envv, extraAuxv, vdsoAddr,

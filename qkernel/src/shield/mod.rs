@@ -4,6 +4,7 @@ pub mod cryptographic_utilities;
 pub mod exec_shield;
 pub mod inode_tracker;
 pub mod sev_guest;
+pub mod secret_injection;
 
 
 use self::exec_shield::*;
@@ -44,6 +45,7 @@ pub fn init_shielding_layer (policy: Option<&Policy>) ->() {
 
     // init sev guest driver
     GUEST_SEV_DEV.write().init(0);
+
 
     
 }

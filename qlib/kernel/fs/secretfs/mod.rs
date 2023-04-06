@@ -20,7 +20,7 @@ use super::filesystems::*;
 
 pub mod fs;
 pub mod proc;
-pub mod meminfo;
+pub mod secretinfo;
 pub mod inode;
 pub mod dir_proc;
 

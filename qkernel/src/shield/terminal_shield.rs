@@ -5,9 +5,7 @@ use spin::rwlock::RwLock;
 use crate::aes_gcm::{
     aead::{generic_array::{GenericArray, typenum::U32}},
 };
-
 use qlib::control_msg::*;
-
 use qlib::common::*;
 use qlib::shield_policy::*;
 use qlib::linux_def::*;

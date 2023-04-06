@@ -45,7 +45,8 @@ use super::super::SignalDef::*;
 use super::super::SHARESPACE;
 use super::fs::*;
 use crate::qlib::shield_policy::*;
-use crate::shield::exec_shield::*;
+use crate::shield::{exec_shield::*, secret_injection};
+use crate::qlib::kernel::boot::config;
 
 impl Process {
     pub fn TaskCaps(&self) -> TaskCaps {
@@ -295,7 +296,7 @@ impl Loader {
             &paths,
         )?;
         let (entry, userStackAddr, kernelStackAddr) =
-            kernel.LoadProcess(&procArgs.Filename, &procArgs.Envv, &mut procArgs.Argv)?;
+            kernel.LoadProcess(&procArgs.Filename, &procArgs.Envv, &mut procArgs.Argv, false)?;
         return Ok((tid, entry, userStackAddr, kernelStackAddr));
     }
 
@@ -372,7 +373,7 @@ impl Loader {
         );
 
         let (entry, userStackAddr, kernelStackAddr) =
-            kernel.LoadProcess(&procArgs.Filename, &procArgs.Envv, &mut procArgs.Argv)?;
+            kernel.LoadProcess(&procArgs.Filename, &procArgs.Envv, &mut procArgs.Argv, false)?;
         return Ok((tid, entry, userStackAddr, kernelStackAddr));
     }
 
@@ -403,6 +404,8 @@ impl Loader {
     }
 
     pub fn StartSubContainer(&self, processSpec: Process) -> Result<(i32, u64, u64, u64)> {
+
+        info!("StartSubContainer");
         let task = Task::Current();
         let mut lockedLoader = self.Lock(task)?;
         let kernel = lockedLoader.kernel.clone();
@@ -432,8 +435,25 @@ impl Loader {
             Some(&processSpec.TaskCaps()),
             &userns,
         );
+        info!("InitRootFs before");
         let rootMounts = InitRootFs(Task::Current(), &processSpec.Root)
             .expect("in loader::StartSubContainer, InitRootfs fail");
+        info!("InitRootFs after");
+
+        let config = config::Config {
+            RootDir: processSpec.Root.clone(),
+            Debug: true,
+        };
+
+        // assume only 1 container possible
+        {   
+            info!("secret_injection::FileSystemMount::init before");
+            let secrets_mount_info = secret_injection::FileSystemMount::init(config, rootMounts.Root(), rootMounts.clone());
+            let mut secret_injector =  secret_injection::SECRET_KEEPER.write();
+            secret_injector.set_secrets_mount_info(secrets_mount_info).unwrap();
+            info!("secret_injection::FileSystemMount::init after");
+        }
+
         kernel
             .mounts
             .write()
@@ -512,6 +532,7 @@ impl Loader {
             &createProcessArgs.Filename,
             &createProcessArgs.Envv,
             &mut createProcessArgs.Argv,
+            true
         )?;
         return Ok((tid, entry, userStackAddr, kernelStackAddr));
     }

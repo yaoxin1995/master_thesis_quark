@@ -4,6 +4,7 @@ pub mod cryptographic_utilities;
 pub mod exec_shield;
 pub mod inode_tracker;
 pub mod sev_guest;
+pub mod secret_injection;
 
 
 use self::exec_shield::*;

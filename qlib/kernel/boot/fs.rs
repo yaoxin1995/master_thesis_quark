@@ -212,13 +212,6 @@ fn CompileMounts(spec: &oci::Spec) -> Vec<oci::Mount> {
         options: Vec::new(),
     });
 
-    mounts.push(oci::Mount {
-        destination: "/secret".to_string(),
-        typ: SECRETFS.to_string(),
-        source: "".to_string(),
-        options: Vec::new(),
-    });
-
     /*mounts.push(oci::Mount {
         destination: "/tmp".to_string(),
         typ: TMPFS.to_string(),
@@ -264,7 +257,7 @@ fn CompileMounts(spec: &oci::Spec) -> Vec<oci::Mount> {
     return mandatoryMounts;
 }
 
-fn MountSubmounts(
+pub fn MountSubmounts(
     task: &Task,
     config: &config::Config,
     mns: &MountNs,
@@ -272,7 +265,7 @@ fn MountSubmounts(
     mounts: &Vec<oci::Mount>,
 ) -> Result<()> {
     for m in mounts {
-        debug!("mounting submounts {:?}", m);
+        debug!("mounting submounts {:?}, mounts {:?}", m, mounts);
         MountSubmount(task, config, mns, root, m, mounts)?;
     }
 

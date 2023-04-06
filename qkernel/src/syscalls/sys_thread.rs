@@ -344,7 +344,7 @@ pub fn Execvat(task: &mut Task, dirfd: i32, filenameAddr: u64, argvAddr: u64, en
         }
     
         let extraAxv = Vec::new();
-        Load(task, &fileName, &mut argv, &envv, &extraAxv)?
+        Load(task, &fileName, &mut argv, &envv, &extraAxv, false)?
     };
     
     //need to clean object on stack before enter_user as the stack will be destroyed

@@ -40,8 +40,8 @@ use super::super::ramfs::dir::*;
 use super::dir_proc::*;
 use super::inode::*;
 
-
-use super::meminfo::*;
+use crate::shield::secret_injection::SECRET_KEEPER;
+use super::secretinfo::*;
 
 
 pub struct ProcNodeInternal {
@@ -102,7 +102,16 @@ pub fn NewSecret(
 ) -> Inode {
     let mut contents = BTreeMap::new();
 
-    contents.insert("secret_template".to_string(), NewMeminfo(task, msrc));
+    info!("new secret");
+
+    {
+        let secret_keeper = SECRET_KEEPER.read();
+        for (file_name, _) in secret_keeper.file_secrets.iter() {
+            let inode = NewSecinfo(task, msrc);
+            info!("NewSecret insert file  {:?} with inode id {:?} to secret file system", file_name, inode.ID());
+            contents.insert(file_name.clone(), inode);
+        }
+    }
 
 
     let iops = Dir::New(

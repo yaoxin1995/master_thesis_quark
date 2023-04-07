@@ -46,7 +46,7 @@
             },
             {
                 "file_path": "mongod.conf",
-                "base64_file_content": "c2VjdXJpdHk6DQogIGF1dGhvcml6YXRpb246IGVuYWJsZWQNCm5ldDoNCiAgc3NsOg0KICAgIG1vZGU6IGFsbG93U1NMIA0KICAgIFBFTUtleUZpbGU6IC9zZWNyZXQvbW9uZ29kYi5wZW0NCiAgICBDQUZpbGU6IC9zZWNyZXQvcm9vdC1jYS5wZW0NCiAgICBhbGxvd0Nvbm5lY3Rpb25zV2l0aG91dENlcnRpZmljYXRlczogdHJ1ZQ0K"
+                "base64_file_content": "c2VjdXJpdHk6DQogIGF1dGhvcml6YXRpb246IGVuYWJsZWQNCm5ldDoNCiAgc3NsOg0KICAgIG1vZGU6IHJlcXVpcmVTU0wgDQogICAgUEVNS2V5RmlsZTogL3NlY3JldC9tb25nb2RiLnBlbQ0KICAgIENBRmlsZTogL3NlY3JldC9yb290LWNhLnBlbQ0KICAgIGFsbG93Q29ubmVjdGlvbnNXaXRob3V0Q2VydGlmaWNhdGVzOiB0cnVlDQo="
             }
         ]
     }

@@ -57,9 +57,6 @@ impl ReadonlyFileNodeTrait for SecretInfoFileNode {
             return Err(Error::SysError(-ret as i32));
         }
 
-
-    
-
         let file_name = f.Dirent.Name();
         let secret_keeper = SECRET_KEEPER.read();
         let secret_content = secret_keeper.file_secrets.get(&file_name);
@@ -115,6 +112,8 @@ impl SimpleFileTrait for SecretinfoInode {
         dirent: &Dirent,
         flags: FileFlags,
     ) -> Result<File> {
+
+        info!("Get File SecretinfoInode");
         let fops = ReadonlyFileOperations {
             node: SecretInfoFileNode {}.into(),
         };
@@ -124,11 +123,12 @@ impl SimpleFileTrait for SecretinfoInode {
     }
 }
 
-pub fn NewSecinfo(task: &Task, msrc: &Arc<QMutex<MountSource>>) -> Inode {
-    let node = SimpleFileInode::New(
-        task,
-        &ROOT_OWNER,
-        &FilePermissions {
+pub fn NewSecinfo(task: &Task, msrc: &Arc<QMutex<MountSource>>, size: i64) -> Inode {
+
+    let attribute = UnstableAttr {
+        Size: size,
+        Owner: ROOT_OWNER,
+        Perms: FilePermissions {
             User: PermMask {
                 read: true,
                 write: false,
@@ -146,10 +146,15 @@ pub fn NewSecinfo(task: &Task, msrc: &Arc<QMutex<MountSource>>) -> Inode {
             },
             ..Default::default()
         },
-        FSMagic::ANON_INODE_FS_MAGIC,
-        false,
-        SecretinfoInode {}.into(),
+        ..Default::default()
+    };
+
+    let unstable = WithCurrentTime(
+        task,
+        &attribute,
     );
+
+    let node = SimpleFileInode::NewWithUnstable(&unstable, FSMagic::ANON_INODE_FS_MAGIC, false, SecretinfoInode {}.into());
 
     return NewSecretInode(node.into(), msrc, InodeType::SpecialFile, None);
 }

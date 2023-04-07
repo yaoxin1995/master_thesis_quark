@@ -106,9 +106,9 @@ pub fn NewSecret(
 
     {
         let secret_keeper = SECRET_KEEPER.read();
-        for (file_name, _) in secret_keeper.file_secrets.iter() {
-            let inode = NewSecinfo(task, msrc);
-            info!("NewSecret insert file  {:?} with inode id {:?} to secret file system", file_name, inode.ID());
+        for (file_name, content) in secret_keeper.file_secrets.iter() {
+            let inode = NewSecinfo(task, msrc, content.len() as i64);
+            info!("NewSecret insert file  {:?} with inode id {:?} to secret file system, file len {:?}", file_name, inode.ID(), content.len());
             contents.insert(file_name.clone(), inode);
         }
     }
@@ -161,6 +161,7 @@ impl FileOperations for SecretFile {
     }
 
     fn Seek(&self, task: &Task, f: &File, whence: i32, current: i64, offset: i64) -> Result<i64> {
+        info!("SecretFile seek whence {:?}, current: {:?}, offset {:?}", whence, current, offset);
         return SeekWithDirCursor(task, f, whence, current, offset, None);
     }
 
@@ -210,6 +211,7 @@ impl FileOperations for SecretFile {
     }
 
     fn UnstableAttr(&self, task: &Task, f: &File) -> Result<UnstableAttr> {
+        info!("FileOperations for SecretFile unstablattr");
         let inode = f.Dirent.Inode().clone();
         return inode.UnstableAttr(task);
     }

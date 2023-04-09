@@ -12,10 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use alloc::string::String;
 
-#[derive(Default, Clone)]
-pub struct Config {
-    pub RootDir: String,
-    pub Debug: bool,
+
+use crate::qlib::mutex::*;
+use alloc::sync::Arc;
+use super::filesystems::*;
+
+pub mod fs;
+pub mod proc;
+pub mod secretinfo;
+pub mod inode;
+pub mod dir_proc;
+
+
+pub fn Init() {
+    RegisterFilesystem(&Arc::new(QMutex::new(self::fs::SecretFileSystem {})));
 }

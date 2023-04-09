@@ -67,6 +67,7 @@ extern crate log;
 extern crate rsa;
 extern crate base64;
 extern crate zeroize;
+extern crate ssh_key;
 
 #[macro_use]
 mod print;
@@ -81,9 +82,8 @@ mod interrupt;
 pub mod kernel_def;
 pub mod rdma_def;
 mod syscalls;
-pub mod shielding_layer;
+pub mod shield;
 
-use self::shielding_layer::*;
 use self::kernel_def::*;
 use self::interrupt::virtualization_handler;
 use self::qlib::kernel::arch;
@@ -109,6 +109,7 @@ use self::qlib::kernel::TSC;
 use crate::qlib::kernel::GlobalIOMgr;
 
 use self::qlib::kernel::vcpu::*;
+use ssh_key::Signature;
 use vcpu::CPU_LOCAL;
 
 use core::panic::PanicInfo;
@@ -140,8 +141,10 @@ use self::threadmgr::task_sched::*;
 use self::qlib::kernel::Scale;
 use self::qlib::kernel::VcpuFreqInit;
 use self::quring::*;
+use self::shield::*;
 
 
+use ssh_key::PrivateKey;
 
 pub const HEAP_START: usize = 0x70_2000_0000;
 pub const HEAP_SIZE: usize = 0x1000_0000;
@@ -513,6 +516,7 @@ pub extern "C" fn rust_main(
     if id == 0 {
         //error!("start main: {}", ::AllocatorPrint(10));
 
+        // WARNING: don't actually hardcode private keys in source code!!!
         //ALLOCATOR.Print();
         IOWait();
     };
@@ -525,6 +529,43 @@ pub extern "C" fn rust_main(
             CreateTask(StartRootContainer as u64, ptr::null(), false);
         }
 
+let encoded_key = r#"
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAACmFlczI1Ni1jdHIAAAAGYmNyeXB0AAAAGAAAABBKH96ujW
+umB6/WnTNPjTeaAAAAEAAAAAEAAAAzAAAAC3NzaC1lZDI1NTE5AAAAILM+rvN+ot98qgEN
+796jTiQfZfG1KaT0PtFDJ/XFSqtiAAAAoFzvbvyFMhAiwBOXF0mhUUacPUCMZXivG2up2c
+hEnAw1b6BLRPyWbY5cC2n9ggD4ivJ1zSts6sBgjyiXQAReyrP35myYvT/OIB/NpwZM/xIJ
+N7MHSUzlkX4adBrga3f7GS4uv4ChOoxC4XsE5HsxtGsq1X8jzqLlZTmOcxkcEneYQexrUc
+bQP0o+gL5aKK8cQgiIlXeDbRjqhc4+h4EF6lY=
+-----END OPENSSH PRIVATE KEY-----
+"#;
+
+        let encrypted_key = PrivateKey::from_openssh(encoded_key);
+        if encrypted_key.is_err() {
+            info!("PrivateKey::from_openssh(encoded_key) got err {:?}", encrypted_key);
+        } else {
+
+            let encrypted_key = encrypted_key.unwrap();
+            assert!(encrypted_key.is_encrypted());
+            let msg = b"TEE RSA key decrypt failed:";
+
+            
+            let signature = encrypted_key.sign("ngnix", ssh_key::HashAlg::Sha256, msg);
+            if signature.is_err() {
+                info!("encrypted_key.sign got err {:?}", signature);
+            } else {
+                let signature = signature.unwrap().to_pem(ssh_key::LineEnding::LF);
+
+                if signature.is_err() {
+                    info!("signature.unwrap().to_pem(ssh_key::LineEnding::LF) {:?}", signature);
+                } else {
+                    let signature = signature.unwrap();
+                    let public_key = encrypted_key.public_key().to_openssh();
+                    info!("get signature {:?}, public_key {:?}", signature, public_key);
+                }
+
+            }
+        }
         CreateTask(ControllerProcess as u64, ptr::null(), true);
     }
 

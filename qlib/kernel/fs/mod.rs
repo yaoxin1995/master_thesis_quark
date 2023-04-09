@@ -38,6 +38,7 @@ pub mod timerfd;
 pub mod tmpfs;
 pub mod tty;
 pub mod inotify;
+pub mod secretfs;
 
 pub fn Init() {
     self::tty::Init();
@@ -45,4 +46,5 @@ pub fn Init() {
     self::procfs::Init();
     self::sys::Init();
     self::tmpfs::Init();
+    self::secretfs::Init();
 }

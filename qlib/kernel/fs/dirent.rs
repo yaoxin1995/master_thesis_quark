@@ -660,6 +660,8 @@ impl Dirent {
         name: &str,
         perms: &FilePermissions,
     ) -> Result<()> {
+
+        info!("CreateDirectory: root {} dir {} perms {:?}", root.Name(), name, perms);
         return self.genericCreate(task, root, name, &mut || -> Result<()> {
             let mut inode = self.Inode();
             let ret = inode.CreateDirectory(task, self, name, perms);

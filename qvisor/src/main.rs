@@ -84,7 +84,7 @@ pub mod ucall;
 pub mod unix_socket_def;
 pub mod util;
 mod vmspace;
-mod shielding_layer;
+mod shield;
 
 use alloc::sync::Arc;
 use lazy_static::lazy_static;
@@ -106,7 +106,6 @@ use self::vmspace::host_pma_keeper::*;
 use self::vmspace::hostfdnotifier::*;
 use self::vmspace::kernel_io_thread::*;
 use self::vmspace::hibernate::*;
-use self::qlib::kernel::sev_guest;
 //use crate::qlib::mem::bitmap_allocator::BitmapAllocatorWrapper;
 
 use self::vmspace::uringMgr::*;
@@ -163,8 +162,8 @@ lazy_static! {
         policy.Print();
         Mutex::new(policy)
     };
-    pub static ref MOCK_ATTESTAION_REPORT: Mutex<sev_guest::AttestationReport> = {
-        let report: sev_guest::AttestationReport = sev_guest::AttestationReport::Load().unwrap();
+    pub static ref MOCK_ATTESTAION_REPORT: Mutex<shield::sev_guest::AttestationReport> = {
+        let report: shield::sev_guest::AttestationReport = shield::sev_guest::AttestationReport::Load().unwrap();
         Mutex::new(report)
     };
     pub static ref URING_MGR: Arc<Mutex<UringMgr>> = {

@@ -37,6 +37,7 @@ use crate::qlib::kernel::fs::procfs::uptime::UptimeFileNode;
 use crate::qlib::kernel::fs::procfs::task::uid_pid_map::IdMapReadonlyFileNode;
 use crate::qlib::kernel::fs::procfs::net::NetUnixReadonlyFileNode;
 use crate::qlib::kernel::fs::procfs::net::NetUDPReadonlyFileNode;
+use crate::qlib::kernel::fs::secretfs::secretinfo::SecretInfoFileNode;
 
 pub fn NewSnapshotReadonlyFileOperations(
     data: Vec<u8>,
@@ -89,6 +90,7 @@ pub enum ReadonlyFileNode {
     ExecArgReadonlyFileNode(ExecArgReadonlyFileNode),
     IdMapReadonlyFileNode(IdMapReadonlyFileNode),
     UptimeFileNode(UptimeFileNode),
+    SecretInfoFileNode(SecretInfoFileNode),
 }
 
 #[enum_dispatch(ReadonlyFileNode)]

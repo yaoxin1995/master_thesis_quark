@@ -73,7 +73,8 @@ use crate::qlib::kernel::fs::ramfs::dir::Dir;
 use crate::qlib::kernel::fs::procfs::symlink_proc::SymlinkNode;
 use crate::qlib::kernel::fs::procfs::seqfile::SeqFile;
 use crate::qlib::kernel::fs::tmpfs::tmpfs_file::TmpfsFileInodeOp;
-use crate::shielding_layer::*;
+use crate::qlib::kernel::fs::secretfs::dir_proc::SecDirNode;
+use crate::shield::inode_tracker::*;
 
 pub fn ContextCanAccessFile(task: &Task, inode: &Inode, reqPerms: &PermMask) -> Result<bool> {
     let creds = task.creds.clone();
@@ -149,6 +150,7 @@ pub enum IopsType {
     SymlinkNode,
     SimpleFileInode,
     ProxyDevice,
+    SecDirNode
 }
 
 #[enum_dispatch]
@@ -182,6 +184,7 @@ pub enum Iops {
     SlaveInodeOperations(SlaveInodeOperations),
     PipeIops(PipeIops),
     UnixSocketInodeOps(UnixSocketInodeOps),
+    SecDirNode(SecDirNode),
 }
 
 impl Iops {

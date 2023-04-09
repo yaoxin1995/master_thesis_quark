@@ -11,12 +11,12 @@ use crate::qlib::common::*;
 use alloc::vec::Vec;
 use alloc::string::ToString;
 use spin::rwlock::RwLock;
-use super::SHARESPACE;
-use super::Kernel::HostSpace;
+use qlib::kernel::SHARESPACE;
+use qlib::kernel::Kernel::HostSpace;
 use sha2::{Sha512, Digest};
 use base64ct::{Base64, Encoding};
 use alloc::string::String;
-use crate::shielding_layer::Tee;
+use super::https_attestation_provisioning_cli::Tee;
 use core::convert::TryInto;
 
 
@@ -504,7 +504,7 @@ impl SnpGuestDev {
 
 		info!("get_report, report data: {:?}", report_data);
 
-		let mut report_data_bin = Base64::decode_vec(&report_data)
+		let report_data_bin = Base64::decode_vec(&report_data)
 														.map_err(|e| Error::Common(format!("get_report, Base64::decode_vec failed: {:?}", e)))?;
         if report_data_bin.len() != 64 {
             return Err(Error::Common(format!(

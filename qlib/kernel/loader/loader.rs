@@ -320,9 +320,12 @@ pub fn Load(
 
         {
             let secret_injector = SECRET_KEEPER.read();
-            secret_injector.inject_file_based_secret_to_secret_file_system(task);
-        }
+            let res = secret_injector.inject_file_based_secret_to_secret_file_system(task);
 
+            if res.is_err() {
+                info!("Load: failed to set up file system for secrets on guest memory");
+            }
+        }
     }
 
 

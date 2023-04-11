@@ -9,7 +9,7 @@
             "allowed_dir": ["/"]
         },
         "exec_result_encryption":true,
-        "enable_container_logs_encryption":true
+        "enable_container_logs_encryption":false
     },
 
     "unprivileged_user_config" :{

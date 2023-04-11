@@ -56,3 +56,4 @@ pub mod sys_utsname;
 pub mod sys_write;
 pub mod sys_xattr;
 pub mod syscalls;
+pub mod sys_attestation_report;

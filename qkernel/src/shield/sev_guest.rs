@@ -540,22 +540,23 @@ impl SnpGuestDev {
 			.map_err(|e| Error::Common(format!("Serialize SEV SNP evidence/report failed: {:?}", e)))
 	}
 
-	// Returns a base64 of the sha512 of all chunks.
-	pub fn hash_chunks(&self, chunks: Vec<Vec<u8>>) -> String {
-    	let mut hasher = Sha512::new();
 
-    	for chunk in chunks.iter() {
-        	hasher.update(chunk);
-    	}
-
-    	let res = hasher.finalize();
-
-		let base64 = Base64::encode_string(&res);
-
-		base64
-	} 
 }
 
+// Returns a base64 of the sha512 of all chunks.
+pub fn hash_chunks(chunks: Vec<Vec<u8>>) -> String {
+	let mut hasher = Sha512::new();
+
+	for chunk in chunks.iter() {
+		hasher.update(chunk);
+	}
+
+	let res = hasher.finalize();
+
+	let base64 = Base64::encode_string(&res);
+
+	base64
+} 
 
 fn vec_to_array<T, const N: usize>(v: Vec<T>) -> [T; N] {
     v.try_into()

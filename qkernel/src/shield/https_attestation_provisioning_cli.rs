@@ -20,7 +20,7 @@ use crate::aes_gcm::{
     Aes256Gcm, Nonce, // Or `Aes128Gcm`
     Key,
 };
-use crate::shield::sev_guest::{detect_tee_type, GUEST_SEV_DEV};
+use crate::shield::sev_guest::{detect_tee_type, GUEST_SEV_DEV, hash_chunks};
 use alloc::string::ToString;
 use qlib::kernel::task::*;
 use qlib::linux_def::*;
@@ -44,7 +44,7 @@ pub const AES_256_GCM_ALGORITHM: &str = "A256GCM";
 /// - Sgx: SGX TEE.
 /// - Sevsnp: SEV-SNP TEE.
 /// - Sample: A dummy TEE that used to test/demo the KBC functionalities.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Tee {
     Sev,
     Sgx,
@@ -437,11 +437,12 @@ impl ShieldProvisioningHttpSClient {
             tee_pubkey.k.clone().into_bytes(),  
         ];
 
+        let ehd = hash_chunks(ehd_chunks);
         let tee_evidence;
 
         {
             let mut attester = GUEST_SEV_DEV.write();
-            let ehd = attester.hash_chunks(ehd_chunks);
+
             tee_evidence = attester
                 .get_report(ehd)
                 .map_err(|e| Error::Common(format!("generate_evidence get report failed: {:?}", e)))?;

@@ -250,7 +250,7 @@ fn fstat(task: &Task, f: &File, statAddr: u64) -> Result<()> {
     let uattr = f.UnstableAttr(task)?;
     let sattr = inode.StableAttr();
 
-    info!("unstable attribute {:?}, stable attribute {:?}", uattr, sattr);
+    debug!("unstable attribute {:?}, stable attribute {:?}", uattr, sattr);
     copyOutStat(task, statAddr, &sattr, &uattr)?;
     return Ok(());
 }

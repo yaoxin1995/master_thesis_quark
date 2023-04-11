@@ -556,6 +556,10 @@ impl SnpGuestDev {
 	} 
 }
 
+pub fn hash_chunks(_chunks: Vec<Vec<u8>>) -> String {
+	return "".to_string();
+} 
+
 
 fn vec_to_array<T, const N: usize>(v: Vec<T>) -> [T; N] {
     v.try_into()

@@ -54,6 +54,7 @@ use super::super::syscalls::sys_msgqueue::*;
 use super::super::syscalls::sys_syslog::*;
 use super::super::syscalls::sys_mmap_socket::*;
 use super::super::syscalls::sys_proxy::*;
+use super::super::syscalls::sys_attestation_report::*;
 
 use super::super::qlib::common::*;
 use super::super::qlib::linux_def::*;
@@ -594,7 +595,8 @@ pub const SYS_CALL_TABLE: &'static [SyscallFn] = &[
     NotImplementSyscall, //	448 sys_process_mrelease
     NotImplementSyscall, //	449 sys_futex_waitv
     NotImplementSyscall, //	450 sys_set_mempolicy_home_node
-    NotExisting,         // 451 unknow syscall
+    SysAttestationReport, // 451 sys_attestation_report
+    NotExisting,         // 452 unknow syscall
 ];
 
 pub fn NotImplementSyscall(_task: &mut Task, args: &SyscallArguments) -> Result<i64> {

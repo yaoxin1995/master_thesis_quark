@@ -21,6 +21,7 @@ use crate::qlib::kernel::Kernel::HostSpace;
 use crate::qlib::kernel::kernel::kernel::GetKernel;
 //use crate::qlib::mem::list_allocator::*;
 use crate::qlib::linux::signal::*;
+use crate::shield::sev_guest;
 // use super::super::super::super::kernel_def::{
 //     StartExecProcess, StartRootContainer, StartSubContainerProcess, POLICY_CHEKCER
 // };
@@ -253,7 +254,7 @@ pub fn ControlMsgHandler(fd: *const u8) {
                         "1238129edjcakhvsjakjaskjsajlkjlksank".as_bytes().to_vec(),
                     ];
     
-                    let report_data = attester.hash_chunks(user_data);
+                    let report_data = sev_guest::hash_chunks(user_data);
     
                     report = attester.get_report(report_data);
                     if  report.is_err() {

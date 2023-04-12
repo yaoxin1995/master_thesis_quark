@@ -32,7 +32,7 @@ impl SecretKeeper {
 
 
 
-    pub fn bookkeep_file_based_secret (&mut self, secrets: Secret) -> Result<()> {
+    pub fn bookkeep_file_based_secret (&mut self, _secrets: Secret) -> Result<()> {
 
         info!("file_based_secret_injection");
 
@@ -42,7 +42,7 @@ impl SecretKeeper {
     }
 
 
-    pub fn inject_file_based_secret_to_secret_file_system (&self, task: &Task) -> Result<()> {
+    pub fn inject_file_based_secret_to_secret_file_system (&self, _task: &Task) -> Result<()> {
 
         info!("inject_file_based_secret_to_secret_file_system");
         Err(Error::NotSupport)

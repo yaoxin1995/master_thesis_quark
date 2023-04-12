@@ -38,21 +38,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aes-gcm-siv"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae0784134ba9375416d469ec31e7c5f9fa94405049cf08c5ce5b4698be673e0d"
-dependencies = [
- "aead",
- "aes",
- "cipher",
- "ctr",
- "polyval",
- "subtle",
- "zeroize",
-]
-
-[[package]]
 name = "atomic-polyfill"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -533,12 +518,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hex-literal"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ebdb29d2ea9ed0083cd8cece49bbd968021bd99b0849edb4a9a7ee0fdf6a4e0"
-
-[[package]]
 name = "hkdf"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -870,7 +849,6 @@ name = "qkernel"
 version = "0.6.0"
 dependencies = [
  "aes-gcm",
- "aes-gcm-siv",
  "base64",
  "base64ct",
  "bit_field",
@@ -881,7 +859,6 @@ dependencies = [
  "embedded-tls",
  "enum_dispatch",
  "getrandom",
- "hex-literal",
  "hmac",
  "httparse",
  "lazy_static",

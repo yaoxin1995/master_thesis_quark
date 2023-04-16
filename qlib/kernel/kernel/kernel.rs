@@ -402,7 +402,7 @@ impl Kernel {
     pub fn LoadProcess(
         &self,
         fileName: &str,
-        envs: &Vec<String>,
+        envs: &mut Vec<String>,
         args: &mut Vec<String>,
         isSubContainer: bool
     ) -> Result<(u64, u64, u64)> {

@@ -81,14 +81,14 @@ pub fn overlayLookup(
             Err(e) => return Err(e),
         }
 
-        info!("overlayLookup, name {:?}", name);
+        //info!("overlayLookup, name {:?}", name);
 
         if OverlayHasWhiteout(task, &upper, name) {
             if upperInode.is_none() {
                 return Err(Error::SysError(SysErr::ENOENT));
             }
 
-            info!("OverlayHasWhiteout, name {:?}", name);
+            //info!("OverlayHasWhiteout, name {:?}", name);
             let entry = OverlayEntry::New(task, upperInode, None, false)?;
             let oinode = NewOverlayInode(task, entry, &inode.lock().MountSource);
             let d = Dirent::New(&oinode, name);
@@ -96,17 +96,17 @@ pub fn overlayLookup(
         }
     }
 
-    info!("lower, name {:?}", name);
+    //info!("lower, name {:?}", name);
     if parent.lower.is_some() {
         let lower = parent.lower.as_ref().unwrap().clone();
-        info!("overlayLookup reach 0{:?}", name);
+        //info!("overlayLookup reach 0{:?}", name);
         match lower.Lookup(task, name) {
             Ok(child) => {
                 if upperInode.is_none() {
-                    info!("lower.Lookup(task, name) a{:?}", name);
+                    //info!("lower.Lookup(task, name) a{:?}", name);
                     lowerInode = Some(child.Inode());
                 } else {
-                    info!("lower.Lookup(task, name) b{:?}", name);
+                    //info!("lower.Lookup(task, name) b{:?}", name);
                     let childInode = child.Inode();
                     if upperInode.as_ref().unwrap().StableAttr().Type
                         == childInode.StableAttr().Type
@@ -124,7 +124,7 @@ pub fn overlayLookup(
         }
     }
 
-    info!("overlayLookup reach 1{:?} name,upperInode.is_some() {:?} lowerInode.is_some(): {:?}", name,upperInode.is_some() ,lowerInode.is_some());
+    //info!("overlayLookup reach 1{:?} name,upperInode.is_some() {:?} lowerInode.is_some(): {:?}", name,upperInode.is_some() ,lowerInode.is_some());
 
     if upperInode.is_none() && lowerInode.is_none() {
         return Err(Error::SysError(SysErr::ENOENT));

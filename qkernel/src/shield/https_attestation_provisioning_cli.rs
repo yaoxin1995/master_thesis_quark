@@ -20,7 +20,7 @@ use crate::aes_gcm::{
     Aes256Gcm, Nonce, // Or `Aes128Gcm`
     Key,
 };
-use crate::shield::sev_guest::{detect_tee_type, GUEST_SEV_DEV, hash_chunks};
+use crate::shield::sev_guest::{detect_tee_type, GUEST_SEV_DEV};
 use alloc::string::ToString;
 use qlib::kernel::task::*;
 use qlib::linux_def::*;
@@ -437,7 +437,7 @@ impl ShieldProvisioningHttpSClient {
             tee_pubkey.k.clone().into_bytes(),  
         ];
 
-        let ehd = hash_chunks(ehd_chunks);
+        let ehd = super::hash_chunks(ehd_chunks);
         let tee_evidence;
 
         {
@@ -879,7 +879,7 @@ fn set_up_tls<'a>(client: &'a ShieldProvisioningHttpSClient, read_record_buffer:
     Ok(tls)
 }
 
-pub fn provisioning_http_client(task: &Task) -> Result<usize> {
+pub fn provisioning_http_client(task: &Task) -> Result<Policy> {
 
     log::trace!("provisioning_http_client start");
 
@@ -945,5 +945,5 @@ pub fn provisioning_http_client(task: &Task) -> Result<usize> {
 
     info!("policy for kbs {:?}", policy);
 
-    Ok(0)
+    Ok(policy)
 }

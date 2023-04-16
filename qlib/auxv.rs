@@ -1,5 +1,5 @@
 #[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize)]
 pub enum AuxVec {
     AT_NULL = 0,
 
@@ -74,7 +74,7 @@ pub enum AuxVec {
     AT_SYSINFO_EHDR = 33,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize)]
 pub struct AuxEntry {
     pub Key: AuxVec,
     pub Val: u64,

@@ -252,6 +252,7 @@ pub fn StartExecProcess(fd: i32, process: Process) {
     super::StartExecProcess(fd, process)
 }
 pub fn StartSubContainerProcess(elfEntry: u64, userStackAddr: u64, kernelStackAddr: u64) {
+    info!("StartSubContainerProcess");
     super::StartSubContainerProcess(elfEntry, userStackAddr, kernelStackAddr)
 }
 

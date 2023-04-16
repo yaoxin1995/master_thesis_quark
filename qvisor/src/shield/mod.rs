@@ -5,6 +5,7 @@ pub mod exec_shield;
 pub mod inode_tracker;
 pub mod sev_guest;
 pub mod secret_injection;
+pub mod software_measurement_manager;
 
 
 use self::exec_shield::*;
@@ -38,12 +39,11 @@ pub fn init_shielding_layer (policy: Option<&Policy>) ->() {
 
     let mut exec_access_control = EXEC_AUTH_AC.write();
     exec_access_control.init(&KEY_SLICE.to_vec(), &encryption_key, policy);
-
-
-
-
     // init sev guest driver
     GUEST_SEV_DEV.write().init(0);
 
     
 }
+pub fn hash_chunks(_chunks: Vec<Vec<u8>>) -> String {
+	return "".to_string();
+} 

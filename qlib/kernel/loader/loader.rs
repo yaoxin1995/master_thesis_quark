@@ -34,7 +34,7 @@ use super::super::task::*;
 use super::elf::*;
 //use super::super::memmgr::mm::*;
 use super::interpreter::*;
-use crate::shield::secret_injection::SECRET_KEEPER;
+use crate::shield::{secret_injection::SECRET_KEEPER, software_measurement_manager, https_attestation_provisioning_cli};
 use super::super::SHARESPACE;
 
 // maxLoaderAttempts is the maximum number of attempts to try to load
@@ -192,6 +192,7 @@ pub fn LoadExecutable(
         }
 
         if SliceCompare(&hdr, ELF_MAGIC.as_bytes()) {
+            info!("start to load LoadElf name {:?}", filename);
             let loaded = LoadElf(task, &file)?;
             return Ok((loaded, executable, argv));
         } else if SliceCompare(&hdr[..2], INTERPRETER_SCRIPT_MAGIC.as_bytes()) {
@@ -209,7 +210,7 @@ pub fn LoadExecutable(
             filename = newpath;
             argv = newargv;
 
-            //info!("load script filename is {} argv is {:?}", &filename, &argv);
+            info!("load script set new filename is {} argv is {:?}", &filename, &argv);
         } else {
             // it is possible there is shell scrip without "#!" header
             // this work around todo: check how linux handle this?
@@ -274,14 +275,16 @@ pub fn Load(
     task: &mut Task,
     filename: &str,
     argv: &mut Vec<String>,
-    envv: &[String],
+    envv: &mut Vec<String>,
     extraAuxv: &[AuxEntry],
     isSubContainer: bool
 ) -> Result<(u64, u64, u64)> {
     let vdsoAddr = LoadVDSO(task)?;
 
+    info!("start load isSubContainer {:?}, file name {:?} is mongond {:?}, argv {:?}, envv {:?}", isSubContainer, filename, filename.eq("/usr/bin/mongod"), argv, envv);
+
     let (loaded, executable, tmpArgv) = LoadExecutable(task, filename, argv)?;
-    let argv = tmpArgv;
+    let mut argv = tmpArgv;
 
     let e = Addr(loaded.end).RoundUp()?.0;
 
@@ -299,42 +302,84 @@ pub fn Load(
 
     let mut stack = Stack::New(stackRange.End());
 
-    if isSubContainer {
-            // book keep secret file
-        {
-
-            let mut secret_injector =  SECRET_KEEPER.write();
-            let policy;
-            unsafe {
-                policy  = SHARESPACE.k8s_policy.as_mut_ptr().as_ref().unwrap();
-            }
-
-            let res = secret_injector.bookkeep_file_based_secret(policy.secret.clone());
-            if res.is_err() {
-                info!("Load: failed to call file_based_secret_injection");
-            }
+    {
+        let mut measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+        while !measurement_manager.is_some() {
+            measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
         }
 
-        {
-            let secret_injector = SECRET_KEEPER.read();
-            let res = secret_injector.inject_file_based_secret_to_secret_file_system(task);
+        let mut measurement_manager = measurement_manager.unwrap();
 
-            if res.is_err() {
-                info!("Load: failed to set up file system for secrets on guest memory");
+        let res = measurement_manager.measure_stack(loaded.auxv.clone());
+        if res.is_err() {
+            info!("Loadmeasurement_manager.measure_stack got error {:?}", res);
+            return Err(res.err().unwrap());
+        }
+
+      
+
+        let app_name = measurement_manager.get_application_name().unwrap();
+        let app_loaded = measurement_manager.is_application_loaded().unwrap();
+
+        // trigger remote attestation and secret provisioning if the kernel is going to launch application binary
+        if app_name.eq(name) && !app_loaded {
+
+            let software_measurement = measurement_manager.get_measurement().unwrap();
+            info!("Load attestation begin, the software measurement is {:?}", software_measurement);
+
+            // attestation, panic if attestation failed
+            // let policy = https_attestation_provisioning_cli::provisioning_http_client(task, software_measurement);
+            // if res.is_err() {
+            //     info!("https_attestation_provisioning_cli::provisioning_http_client(task) got error {:?}", res);
+            //     return Err(res.err().unwrap());
+            // }
+
+            // let policy = policy.unwrap();
+            // updata the policy
+
+            // secret injection
+
+            // file based secret injection
+            let policy = SHARESPACE.k8s_policy.read();
+            {
+                let mut secret_injector =  SECRET_KEEPER.write();
+    
+                let res = secret_injector.bookkeep_file_based_secret(policy.secret.clone());
+                if res.is_err() {
+                    info!("Load: failed to call file_based_secret_injection");
+                }
             }
+    
+            {
+                let secret_injector = SECRET_KEEPER.read();
+                let res = secret_injector.inject_file_based_secret_to_secret_file_system(task);
+    
+                if res.is_err() {
+                    info!("Load: failed to set up file system for secrets on guest memory");
+                }
+            }
+
+            // env based secret injection
+            let mut env_secrets = policy.secret.env_variables.clone();
+            envv.append(&mut env_secrets);
+
+            // app args based secret injection
+            let mut arg_secrets = policy.secret.cmd_arg.clone();
+            argv.append(&mut arg_secrets);
+
+            measurement_manager.set_application_loaded();
+
+            info!("secret injection finished, envv {:?}, args {:?}", envv, argv);
         }
     }
-
-
-
-
-
+    
     let usersp = SetupUserStack(
         task, &mut stack, &loaded, filename, &argv, envv, extraAuxv, vdsoAddr,
     )?;
     let kernelsp = Task::TaskId().Addr() + MemoryDef::DEFAULT_STACK_SIZE - 0x10;
     let entry = loaded.entry;
 
+    error!("LOAD finished");
     return Ok((entry, usersp, kernelsp));
 }
 

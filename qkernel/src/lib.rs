@@ -109,7 +109,6 @@ use self::qlib::kernel::TSC;
 use crate::qlib::kernel::GlobalIOMgr;
 
 use self::qlib::kernel::vcpu::*;
-use ssh_key::Signature;
 use vcpu::CPU_LOCAL;
 
 use core::panic::PanicInfo;
@@ -460,7 +459,6 @@ pub fn InitTsc() {
 
 extern crate hmac;
 extern crate sha2;
-extern crate hex_literal;
 extern crate base64ct;
 
 
@@ -511,7 +509,18 @@ pub extern "C" fn rust_main(
     interrupt::init();
 
     /***************** can't run any qcall before this point ************************************/
-    
+    {
+        let mut measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+        while !measurement_manager.is_some() {
+            measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+        }
+
+        let mut measurement_manager = measurement_manager.unwrap();
+        let res = measurement_manager.measure_qkernel_argument(heapStart, shareSpaceAddr, id, vdsoParamAddr, vcpuCnt, autoStart);
+        if res.is_err() {
+            panic!("measure_qkernel_argument got error {:?}", res);
+        }
+    }
 
     if id == 0 {
         //error!("start main: {}", ::AllocatorPrint(10));
@@ -606,6 +615,24 @@ fn StartRootContainer(_para: *const u8) -> ! {
     let task = Task::Current();
     let mut process = Process::default();
     Kernel::HostSpace::LoadProcessKernel(&mut process as * mut _ as u64) as usize;
+
+    {
+        let mut measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+        while !measurement_manager.is_some() {
+            measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+        }
+
+        let mut measurement_manager = measurement_manager.unwrap();
+
+
+        let res = measurement_manager.measure_process_spec(&process);
+        if res.is_err() {
+            error!("StartRootContainer measure_process_spec(&processSpec) got error {:?}", res);
+            SHARESPACE.StoreShutdown();
+            Kernel::HostSpace::ExitVM(2);
+            panic!("exiting ...");
+        }
+    }
 
     let (_tid, entry, userStackAddr, kernelStackAddr) = {
         let mut processArgs = LOADER.Lock(task).unwrap().Init(process);

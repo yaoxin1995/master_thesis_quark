@@ -13,7 +13,6 @@ use alloc::string::ToString;
 use spin::rwlock::RwLock;
 use qlib::kernel::SHARESPACE;
 use qlib::kernel::Kernel::HostSpace;
-use sha2::{Sha512, Digest};
 use base64ct::{Base64, Encoding};
 use alloc::string::String;
 use super::https_attestation_provisioning_cli::Tee;
@@ -542,21 +541,6 @@ impl SnpGuestDev {
 
 
 }
-
-// Returns a base64 of the sha512 of all chunks.
-pub fn hash_chunks(chunks: Vec<Vec<u8>>) -> String {
-	let mut hasher = Sha512::new();
-
-	for chunk in chunks.iter() {
-		hasher.update(chunk);
-	}
-
-	let res = hasher.finalize();
-
-	let base64 = Base64::encode_string(&res);
-
-	base64
-} 
 
 fn vec_to_array<T, const N: usize>(v: Vec<T>) -> [T; N] {
     v.try_into()

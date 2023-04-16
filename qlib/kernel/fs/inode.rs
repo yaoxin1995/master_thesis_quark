@@ -614,7 +614,7 @@ impl Inode {
     pub fn Lookup(&self, task: &Task, name: &str) -> Result<Dirent> {
         let isOverlay = self.lock().Overlay.is_some();
         if isOverlay {
-            info!("Lookup isoverlay: {:?}", name);
+            // info!("Lookup isoverlay: {:?}", name);
             let overlay = self.lock().Overlay.as_ref().unwrap().clone();
             let (dirent, _) = overlayLookup(task, &overlay, self, name)?;
             return Ok(dirent);
@@ -622,7 +622,7 @@ impl Inode {
         
         let iops = self.lock().InodeOp.clone();
         let res = iops.Lookup(task, self, name);
-        info!("Lookup overlay: 1111 {:?}", name);
+        // info!("Lookup overlay: 1111 {:?}", name);
         return res;
     }
 

@@ -101,7 +101,7 @@ pub fn SysAttestationReport(task: &mut Task, args: &SyscallArguments) -> Result<
         user_data_unwrap
     ];
 
-    let encode64_user_data = sev_guest::hash_chunks(user_data_chunks);
+    let encode64_user_data = crate::shield::hash_chunks(user_data_chunks);
     match sev_guest::detect_tee_type() {
         https_attestation_provisioning_cli::Tee::Snp => {
 

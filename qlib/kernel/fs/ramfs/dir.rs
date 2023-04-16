@@ -241,7 +241,7 @@ impl InodeOperations for Dir {
         if name.len() > NAME_MAX {
             return Err(Error::SysError(SysErr::ENAMETOOLONG));
         }
-        info!("Dir Inode Lookup name {:?}", name);
+        //info!("Dir Inode Lookup name {:?}", name);
 
         let d = self.read();
 

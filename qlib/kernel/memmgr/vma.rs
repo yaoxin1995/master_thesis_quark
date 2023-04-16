@@ -260,7 +260,7 @@ impl MemoryManager {
             Map32Bit: opts.Map32Bit,
             Kernel: opts.Kernel,
         };
-        let addr = self.FindAvailableLocked(opts.Length, &mut findopts)?;
+        let addr = self.FindAvailableLocked(opts.Length, &mut findopts)?;   // return start virtual address of avialiable range
 
         let ar = Range::New(addr, opts.Length);
 

@@ -642,6 +642,8 @@ impl HostInodeOp {
         offset: i64,
         _blocking: bool,
     ) -> Result<i64> {
+
+        info!("Hostinode ReadAt");
         let hostIops = self.clone();
 
         let size = IoVec::NumBytes(dsts);
@@ -943,6 +945,8 @@ impl HostInodeOp {
         writeable: bool,
     ) -> Result<()> {
         self.lock().hasMappable = true;
+
+        info!("AddMapping start virtual addr {:x}, end virtual address {:x}, len {:x}, offset {:x}, writeable {:?}", ar.start, ar.End(), ar.Len(),  offset, writeable);
 
         // todo: if there is bufwrite ongoing, should we wait for it?
         /*let _= if self.BufWriteEnable() {

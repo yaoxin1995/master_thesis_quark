@@ -32,6 +32,7 @@ use super::super::fs::file::*;
 use super::super::memmgr::*;
 use super::super::task::*;
 use super::super::util::cstring::*;
+use crate::shield::software_measurement_manager;
 
 pub const ELF_MAGIC: &str = "\x7fELF";
 pub const INTERPRETER_SCRIPT_MAGIC: &str = "#!";
@@ -176,7 +177,7 @@ pub fn MapSegment(
         .RoundUp()?;
 
     let fileOffset = Addr(header.offset).RoundDown()?;
-    //info!("MapSegment fileoffset is {:x}, size is {:x}, filesize is {:x}", fileOffset.0, size, filesize);
+    info!("MapSegment fileoffset is {:x}, size is {:x}, filesize is {:x}", fileOffset.0, size, filesize);
     if fileOffset.0 + size > filesize as u64 {
         return Err(Error::SysError(SysErr::ENOEXEC));
     }
@@ -184,8 +185,8 @@ pub fn MapSegment(
     let addr = if endMem.0 - startMem.0 == 0 {
         offset + startMem.0
     } else {
-        //info!("virtual address is {:x}, fileoffset is {:x}, delta is {:x}, offset is {:x}, len is {:x}",
-        //    header.virtual_addr, header.offset, header.virtual_addr - header.offset, offset, endMem.0 - startMem.0);
+        info!("virtual address is {:x}, fileoffset is {:x}, delta is {:x}, offset is {:x}, len is {:x}",
+           header.virtual_addr, header.offset, header.virtual_addr - header.offset, offset, endMem.0 - startMem.0);
         let mut moptions = MMapOpts::NewFileOptions(file)?;
         moptions.Length = endMem.0 - startMem.0;
         moptions.Addr = offset + startMem.0;
@@ -197,6 +198,8 @@ pub fn MapSegment(
 
         task.mm.MMap(task, &mut moptions)?
     };
+
+    info!("MapSegment addr is {:x}", addr);
 
     let adjust = header.virtual_addr - startMem.0;
 
@@ -356,11 +359,12 @@ pub fn LoadParseElf(
                     Ok(s) => s,
                 };
 
-                info!("the interpreter is {}", interpreter);
+                info!("LoadParseElf the interpreter is {}", interpreter);
             }
             Type::Load => {
                 let vaddr = header.virtual_addr;
 
+                // info!("LoadParseElf Type::Load start {:x} end {:x}", start, end);
                 if first {
                     first = false;
                     start = vaddr;
@@ -387,6 +391,8 @@ pub fn LoadParseElf(
             }
         }
     }
+
+    // info!("LoadParseElf Type::Load finsihed start {:x} end {:x}, info.sharedObject {:?}", start, end, info.sharedObject);
 
     // Shared objects don't have fixed load addresses. We need to pick a
     // base address big enough to fit all segments, so we first create a
@@ -431,6 +437,35 @@ pub fn LoadParseElf(
                 }
                 Ok(()) => (),
             }
+
+            {
+                let mut measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+                while !measurement_manager.is_some() {
+                    measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+                }
+    
+                let mut measurement_manager = measurement_manager.unwrap();
+                measurement_manager.measure_elf_loadable_segment(header.virtual_addr, header.file_size, offset, task).unwrap();
+            }
+
+            // let startMem = Addr(header.virtual_addr).RoundDown().unwrap();
+            // let endMem = Addr(header.virtual_addr)
+            //         .AddLen(header.file_size).unwrap()
+            //         .RoundUp().unwrap();
+            // let len = endMem.0 - startMem.0;
+            
+            // let vma_start = startMem.0 + offset;
+            // // info!("MapSegment finished, header start virtual_addr {:x}, end virtual_addr {:x}, len {:x}, vma_start {:x}", startMem.0, endMem.0, len, vma_start);
+
+            // let data: Result<Vec<u8>> =  task.CopyInVec(vma_start, len as usize);
+            // if data.is_err() {
+            //     // info!("After MapSegment copy elf loadable segment got error {:?}", data);
+            // } else {
+            //     let loadable = data.unwrap();
+            //     // info!("After MapSegment get elf loadable segment");
+            // }
+
+            
         }
     }
 
@@ -525,6 +560,7 @@ pub fn LoadElf(task: &mut Task, file: &File) -> Result<LoadedElf> {
     };
 
     let mut interp = LoadedElf::default();
+    info!("LoadElf bin.interpreter: {:?}", bin.interpreter.as_str());
     if bin.interpreter.as_str() != "" {
         let fileName = CString::New(&bin.interpreter);
         let fd = task.Open(fileName.Ptr(), OpenFlags::O_RDONLY as u64, 0); //kernel address is same as phy address

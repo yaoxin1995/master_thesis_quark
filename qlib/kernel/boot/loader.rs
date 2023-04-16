@@ -45,7 +45,7 @@ use super::super::SignalDef::*;
 use super::super::SHARESPACE;
 use super::fs::*;
 use crate::qlib::shield_policy::*;
-use crate::shield::{exec_shield::*, secret_injection};
+use crate::shield::{exec_shield::*, secret_injection, software_measurement_manager};
 use crate::qlib::kernel::boot::config;
 
 impl Process {
@@ -296,7 +296,7 @@ impl Loader {
             &paths,
         )?;
         let (entry, userStackAddr, kernelStackAddr) =
-            kernel.LoadProcess(&procArgs.Filename, &procArgs.Envv, &mut procArgs.Argv, false)?;
+            kernel.LoadProcess(&procArgs.Filename, &mut procArgs.Envv, &mut procArgs.Argv, false)?;
         return Ok((tid, entry, userStackAddr, kernelStackAddr));
     }
 
@@ -373,7 +373,7 @@ impl Loader {
         );
 
         let (entry, userStackAddr, kernelStackAddr) =
-            kernel.LoadProcess(&procArgs.Filename, &procArgs.Envv, &mut procArgs.Argv, false)?;
+            kernel.LoadProcess(&procArgs.Filename, &mut procArgs.Envv, &mut procArgs.Argv, false)?;
         return Ok((tid, entry, userStackAddr, kernelStackAddr));
     }
 
@@ -406,6 +406,24 @@ impl Loader {
     pub fn StartSubContainer(&self, processSpec: Process) -> Result<(i32, u64, u64, u64)> {
 
         info!("StartSubContainer");
+        {
+            let mut measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+            while !measurement_manager.is_some() {
+                measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+            }
+
+            let mut measurement_manager = measurement_manager.unwrap();
+
+
+            measurement_manager.set_application_name(&processSpec.Envs)?;
+
+            let res = measurement_manager.measure_process_spec(&processSpec);
+            if res.is_err() {
+                info!("StartSubContainer measure_process_spec(&processSpec) got error {:?}", res);
+                return Err(res.err().unwrap());
+            }
+        }
+
         let task = Task::Current();
         let mut lockedLoader = self.Lock(task)?;
         let kernel = lockedLoader.kernel.clone();
@@ -435,10 +453,8 @@ impl Loader {
             Some(&processSpec.TaskCaps()),
             &userns,
         );
-        info!("InitRootFs before");
         let rootMounts = InitRootFs(Task::Current(), &processSpec.Root)
             .expect("in loader::StartSubContainer, InitRootfs fail");
-        info!("InitRootFs after");
 
         let config = config::Config {
             RootDir: processSpec.Root.clone(),
@@ -447,11 +463,11 @@ impl Loader {
 
         // assume only 1 container possible
         {   
-            info!("secret_injection::FileSystemMount::init before");
+            debug!("secret_injection::FileSystemMount::init before");
             let secrets_mount_info = secret_injection::FileSystemMount::init(config, rootMounts.Root(), rootMounts.clone());
             let mut secret_injector =  secret_injection::SECRET_KEEPER.write();
             secret_injector.set_secrets_mount_info(secrets_mount_info).unwrap();
-            info!("secret_injection::FileSystemMount::init after");
+            debug!("secret_injection::FileSystemMount::init after");
         }
 
         kernel
@@ -528,9 +544,12 @@ impl Loader {
             &createProcessArgs.Filename,
             &paths,
         )?;
+
+    
+        
         let (entry, userStackAddr, kernelStackAddr) = kernel.LoadProcess(
             &createProcessArgs.Filename,
-            &createProcessArgs.Envv,
+            &mut createProcessArgs.Envv,
             &mut createProcessArgs.Argv,
             true
         )?;

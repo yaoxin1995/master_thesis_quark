@@ -200,7 +200,7 @@ pub fn Execvat(
 
         let mut argv =
             task.CopyInVector(argvAddr, EXEC_MAX_ELEM_SIZE, EXEC_MAX_TOTAL_SIZE as i32)?;
-        let envv = task.CopyInVector(envvAddr, EXEC_MAX_ELEM_SIZE, EXEC_MAX_TOTAL_SIZE as i32)?;
+        let mut envv = task.CopyInVector(envvAddr, EXEC_MAX_ELEM_SIZE, EXEC_MAX_TOTAL_SIZE as i32)?;
 
         if argv.len() == 0 {
             argv.push(fileName.clone())
@@ -355,7 +355,7 @@ pub fn Execvat(
         }
 
         let extraAxv = Vec::new();
-        Load(task, &fileName, &mut argv, &envv, &extraAxv, false)?
+        Load(task, &fileName, &mut argv, &mut envv, &extraAxv, false)?
     };
 
     //need to clean object on stack before enter_user as the stack will be destroyed

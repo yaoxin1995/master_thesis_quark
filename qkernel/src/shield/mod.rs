@@ -5,7 +5,7 @@ pub mod exec_shield;
 pub mod inode_tracker;
 pub mod sev_guest;
 pub mod secret_injection;
-
+pub mod software_measurement_manager;
 
 use self::exec_shield::*;
 use self::terminal_shield::*;
@@ -13,7 +13,9 @@ use self::inode_tracker::*;
 use qlib::shield_policy::*;
 use crate::aes_gcm::{ Aes256Gcm, Key};
 use self::sev_guest::GUEST_SEV_DEV;
-
+use sha2::{Sha512, Digest};
+use base64ct::{Base64, Encoding};
+use alloc::{vec::Vec, string::String};
 
 
 pub fn init_shielding_layer (policy: Option<&Policy>) ->() {
@@ -49,3 +51,19 @@ pub fn init_shielding_layer (policy: Option<&Policy>) ->() {
 
     
 }
+
+
+// Returns a base64 of the sha512 of all chunks.
+pub fn hash_chunks(chunks: Vec<Vec<u8>>) -> String {
+	let mut hasher = Sha512::new();
+
+	for chunk in chunks.iter() {
+		hasher.update(chunk);
+	}
+
+	let res = hasher.finalize();
+
+	let base64 = Base64::encode_string(&res);
+
+	base64
+} 

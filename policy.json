@@ -33,7 +33,8 @@
             "TERM=xterm"
         ],
         "cmd_arg": [
-            "sh"
+            "--config",
+            "/secret/mongod.conf"
         ],
         "config_fils":[
             {

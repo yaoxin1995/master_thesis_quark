@@ -25,6 +25,7 @@ use super::super::qlib::common::*;
 use super::super::qlib::linux_def::*;
 use super::super::syscalls::syscalls::*;
 use super::super::task::*;
+use crate::shield::software_measurement_manager;
 
 pub fn SysMmap(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
     let addr = args.arg0 as u64;
@@ -125,10 +126,32 @@ pub fn SysMmap(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
         opts.Mappable = MMappable::FromHostIops(memfdIops);
     }
 
-    match task.mm.MMap(task, &mut opts) {
-        Ok(addr) => Ok(addr as i64),
-        Err(e) => Err(e),
+    let start_adr = task.mm.MMap(task, &mut opts)?;
+
+    let file = task.GetFile(fd);
+    if file.is_err() {
+        return Ok(start_adr as i64);
     }
+    
+    let file = file.unwrap();
+    let file_name = file.MappedName(task);
+    let is_shared_lib =  software_measurement_manager::is_shared_lib(&file_name).unwrap();
+
+    debug!("SysMmap addr {:x}, len {:x}, prot {:?}, flags {:?}, fd {:?}, offset {:?}, fixed {:?}, private {:?}, shared: {:?}, anon {:?} file_name {:?}, is_shared_lib {:?}", addr, len, prot, flags, fd, offset, fixed, private, shared, anon, file_name, is_shared_lib);
+
+    if is_shared_lib {
+        debug!("is_shared_lib start");
+        let mut measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+        while !measurement_manager.is_some() {
+            measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+        }
+        debug!("is_shared_lib get measurement_manager");
+        let mut measurement_manager = measurement_manager.unwrap();
+        measurement_manager.measure_shared_lib(start_adr, &file, &task, fixed, len).unwrap();
+    }
+
+    Ok(start_adr as i64)
+
 }
 
 pub fn SysMprotect(task: &mut Task, args: &SyscallArguments) -> Result<i64> {

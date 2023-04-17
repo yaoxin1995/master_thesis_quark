@@ -446,26 +446,7 @@ pub fn LoadParseElf(
     
                 let mut measurement_manager = measurement_manager.unwrap();
                 measurement_manager.measure_elf_loadable_segment(header.virtual_addr, header.file_size, offset, task).unwrap();
-            }
-
-            // let startMem = Addr(header.virtual_addr).RoundDown().unwrap();
-            // let endMem = Addr(header.virtual_addr)
-            //         .AddLen(header.file_size).unwrap()
-            //         .RoundUp().unwrap();
-            // let len = endMem.0 - startMem.0;
-            
-            // let vma_start = startMem.0 + offset;
-            // // info!("MapSegment finished, header start virtual_addr {:x}, end virtual_addr {:x}, len {:x}, vma_start {:x}", startMem.0, endMem.0, len, vma_start);
-
-            // let data: Result<Vec<u8>> =  task.CopyInVec(vma_start, len as usize);
-            // if data.is_err() {
-            //     // info!("After MapSegment copy elf loadable segment got error {:?}", data);
-            // } else {
-            //     let loadable = data.unwrap();
-            //     // info!("After MapSegment get elf loadable segment");
-            // }
-
-            
+            }            
         }
     }
 

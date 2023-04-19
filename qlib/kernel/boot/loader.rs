@@ -45,7 +45,7 @@ use super::super::SignalDef::*;
 use super::super::SHARESPACE;
 use super::fs::*;
 use crate::qlib::shield_policy::*;
-use crate::shield::{exec_shield::*, secret_injection, software_measurement_manager};
+use crate::shield::{exec_shield::*, secret_injection, software_measurement_manager, APPLICATION_INFO_KEEPER};
 use crate::qlib::kernel::boot::config;
 
 impl Process {
@@ -422,6 +422,11 @@ impl Loader {
                 info!("StartSubContainer measure_process_spec(&processSpec) got error {:?}", res);
                 return Err(res.err().unwrap());
             }
+        }
+
+        {
+            let mut application_info_keeper = APPLICATION_INFO_KEEPER.write();
+            application_info_keeper.parse_envs(&processSpec.Envs).unwrap();
         }
 
         let task = Task::Current();

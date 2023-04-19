@@ -84,19 +84,6 @@ impl SoftwareMeasurementManager {
         Ok(())
     }
 
-    pub fn is_application_loaded (&self) -> Result<bool> {
-        return Ok(self.is_app_loaded);
-    }
-
-    pub fn set_application_loaded (&mut self) -> Result<()> {
-        self.is_app_loaded = true;
-        return Ok(());
-    }
-
-    pub fn get_application_name (&self) -> Result<&str> {
-        return Ok(&self.containerlized_app_name);
-    }
-
     pub fn measure_process_spec(&mut self, proc_spec: &Process) -> Result<()> {
 
         let proccess_spec_vec = serde_json::to_vec(proc_spec);

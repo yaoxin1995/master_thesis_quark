@@ -140,12 +140,10 @@ pub fn SysMmap(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
     debug!("SysMmap addr {:x}, len {:x}, prot {:?}, flags {:?}, fd {:?}, offset {:?}, fixed {:?}, private {:?}, shared: {:?}, anon {:?} file_name {:?}, is_shared_lib {:?}", addr, len, prot, flags, fd, offset, fixed, private, shared, anon, file_name, is_shared_lib);
 
     if is_shared_lib {
-        debug!("is_shared_lib start");
         let mut measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
         while !measurement_manager.is_some() {
             measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
         }
-        debug!("is_shared_lib get measurement_manager");
         let mut measurement_manager = measurement_manager.unwrap();
         measurement_manager.measure_shared_lib(start_adr, &file, &task, fixed, len).unwrap();
     }

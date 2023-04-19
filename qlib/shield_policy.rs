@@ -88,8 +88,7 @@ pub struct Policy {
     pub enable_policy_updata: bool,
     pub privileged_user_config: PrivilegedUserConfig,
     pub unprivileged_user_config:  UnprivilegedUserConfig,
-    pub hmac_key_slice: String,
-    pub log_encryption_key: String,
+    pub privileged_user_key_slice: String,
     pub secret: Secret,
 }
 

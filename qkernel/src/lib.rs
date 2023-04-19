@@ -224,7 +224,7 @@ pub fn SingletonInit() {
         qlib::InitSingleton();
 
 
-        init_shielding_layer(SHARESPACE.k8s_policy.as_mut_ptr().as_ref());
+        init_shielding_layer();
 
     }
 }

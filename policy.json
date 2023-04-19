@@ -1,6 +1,5 @@
 {
     "enable_policy_updata": true,
-
     "privileged_user_config" :{
         "enable_terminal": true,
         "enable_single_shot_command_line_mode": true,
@@ -20,13 +19,7 @@
             "allowed_dir": ["/var/log"]
         }
     },
-
-    "hmac_key_slice": "asjdhasuifricnjkdioa",
-    
-
-    "log_encryption_key": "123",
-
-
+    "privileged_user_key_slice": "a very simple secret key to use!",
     "secret": {
         "env_variables" : [
             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",

@@ -54,7 +54,7 @@ use super::super::syscalls::sys_msgqueue::*;
 use super::super::syscalls::sys_syslog::*;
 use super::super::syscalls::sys_mmap_socket::*;
 use super::super::syscalls::sys_proxy::*;
-use super::super::syscalls::sys_attestation_report::*;
+use crate::shield::sys_attestation_report::*;
 
 use super::super::qlib::common::*;
 use super::super::qlib::linux_def::*;

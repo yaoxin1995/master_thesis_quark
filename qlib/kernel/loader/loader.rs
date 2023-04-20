@@ -337,7 +337,7 @@ pub fn Load(
     if app_name.eq(name) && !app_loaded {
 
 
-        info!("Load attestation begin, the software measurement is {:?}", software_measurement);
+        debug!("Load attestation begin, the software measurement is {:?}", software_measurement);
 
         // attestation, panic if attestation failed
         let policy = https_attestation_provisioning_cli::provisioning_http_client(task, &software_measurement);
@@ -384,7 +384,7 @@ pub fn Load(
             app_info_keeper.set_application_loaded().unwrap();
         }
 
-        info!("secret injection finished, envv {:?}, args {:?}", envv, argv);
+        debug!("secret injection finished, envv {:?}, args {:?}", envv, argv);
     }
     
     let usersp = SetupUserStack(

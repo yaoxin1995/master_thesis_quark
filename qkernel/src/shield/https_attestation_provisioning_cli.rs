@@ -27,6 +27,7 @@ use qlib::linux_def::*;
 use qlib::shield_policy::*;
 use super::APPLICATION_INFO_KEEPER;
 use super::kbs_secret::*;
+use ssh_key;
 
 
 const SECRET_MANAGER_IP:  [u8;4] = [10, 206, 133, 76];
@@ -38,7 +39,8 @@ const RSA_KEY_TYPE: &str = "RSA";
 const RSA_ALGORITHM: &str = "RSA1_5";
 const RSA_PUBKEY_LENGTH: usize = 2048;
 const NEW_PADDING: fn() -> PaddingScheme = PaddingScheme::new_pkcs1v15_encrypt;
-pub const AES_256_GCM_ALGORITHM: &str = "A256GCM";
+const AES_256_GCM_ALGORITHM: &str = "A256GCM";
+const URI_TO_GET_KBS_SIGNING_KEY: &str = "default/signing_key/test";
 
 /// The supported TEE types:
 /// - Tdx: TDX TEE.
@@ -910,7 +912,7 @@ fn get_policy(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSh
         return Err(Error::Common(format!("get_policy user didn't provide policy, enclave will use default one")));
     }
 
-    info!("get_policy policy_url {:?}", policy_url);
+    debug!("get_policy policy_url {:?}", policy_url);
 
     let get_resource_http = client.prepair_get_resource_http_req(policy_url.unwrap());
     let mut rx_buf_get_secret = [0; 4096];
@@ -927,9 +929,6 @@ fn get_policy(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSh
         .map_err(|e| Error::Common(format!("get_policy base64::decode failed to get secret {:?}", e)))?;
     let policy: KbsPolicy = serde_json::from_slice(&bytes).map_err(|e| Error::Common(format!("get_policy serde_json::from_slice failed to get secret {:?}", e)))?;
 
-    // attestation phase 2 get resource, policy, secret, signing key
-    // let's get the policy first
-    // TODO: get url from ymal
     log::debug!("get_policy policy from kbs {:?}", policy);
 
 
@@ -1026,7 +1025,7 @@ fn get_secret(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSh
         file_urls = application_info_keeper.kbs_file_based_secret_paths.clone();
     }
 
-    info!("get_secret cmd_url {:?}, file_urls {:?}", cmd_env_url, file_urls);
+    debug!("get_secret cmd_url {:?}, file_urls {:?}", cmd_env_url, file_urls);
 
 
     if cmd_env_url.is_some() {
@@ -1039,15 +1038,31 @@ fn get_secret(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSh
         kbs_secret.config_fils = Some(config_files);
     }
 
-
-
-    // attestation phase 2 get resource, policy, secret, signing key
-    // let's get the policy first
-    // TODO: get url from ymal
     log::debug!("get_secret from kbs {:?}", kbs_secret);
     Ok(kbs_secret)
 
 }
+
+
+fn get_kbs_signing_key(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSha256>, client: &mut ShieldProvisioningHttpSClient) -> Result<ssh_key::PrivateKey> {
+
+
+    let get_resource_http = client.prepair_get_resource_http_req(URI_TO_GET_KBS_SIGNING_KEY.to_string());
+    let mut rx_buf_for_cmd = [0; 4096];
+    let resp_len = send_http_request_to_sm(tls, get_resource_http, &mut rx_buf_for_cmd)
+        .map_err(|e| Error::Common(format!("get_kbs_signing_key provisioning_http_client, attestation phase 2: get resource get error: {:?}", e)))?;
+
+    let secret = client.parse_http_get_resource_resp(&rx_buf_for_cmd[..resp_len as usize])
+        .map_err(|e| Error::Common(format!("get_kbs_signing_key provisioning_http_client, attestation phase 2: parse resp get error: {:?}", e)))?;
+    let to_private_key = ssh_key::PrivateKey::from_bytes(&secret)
+        .map_err(|e| Error::Common(format!("get_kbs_signing_key ssh_key::PrivateKey::from_bytes get error: {:?}", e)))?;
+
+
+    log::debug!("get_kbs_signing_key from kbs {}", &*to_private_key.to_openssh(ssh_key::LineEnding::LF).unwrap());
+
+    Ok(to_private_key)
+}
+
 
 
 
@@ -1103,37 +1118,21 @@ pub fn provisioning_http_client(task: &Task, software_maasurement: &str) -> Resu
 
     }
 
-    // let get_resource_http = client.prepair_get_resource_http_req("default/test_resources/test".to_string());
-    // let mut rx_buf_get_secret = [0; 15000];
-    // let resp_len = send_http_request_to_sm(&mut tls, get_resource_http, &mut rx_buf_get_secret)
-    //     .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 2: get resource get error: {:?}", e)))?;
-
-    // let secret = client.parse_http_get_resource_resp(&rx_buf_get_secret[..resp_len as usize])
-    //     .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 2: parse resp get error: {:?}", e)))?;
-
-    // let http_get_resp = String::from_utf8_lossy(&secret).to_string();
-    // log::debug!("provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, resp_len);
-
-    // let bytes = base64::decode(secret)
-    //     .map_err(|e| Error::Common(format!("base64::decode failed to get secret {:?}", e)))?;
-    // let policy: Policy = serde_json::from_slice(&bytes).map_err(|e| Error::Common(format!("serde_json::from_slice failed to get secret {:?}", e)))?;
-
-    // attestation phase 2 get resource, policy, secret, signing key
-    // let's get the policy first
-    // TODO: get url from ymal
-
     let kbs_secret = get_secret(&mut tls, &mut client);
     if kbs_secret.is_err() {
         info!("provisioning_http_client  get_secret(&mut tls, &mut client) got erorr {:?}", kbs_secret);
         return Err(kbs_secret.err().unwrap());
     }
 
-
-
     let kbs_policy = get_policy(&mut tls, &mut client);
     if kbs_policy.is_err() {
         info!("provisioning_http_client  gget_policy(&mut tls, &mut client); got erorr {:?}", kbs_policy);
         return Err(kbs_policy.err().unwrap());
+    }
+
+    let kbs_signing_Key = get_kbs_signing_key(&mut tls, &mut client);
+    if kbs_signing_Key.is_err() {
+        info!("provisioning_http_client   get_kbs_signing_key(&mut tls, &mut client); got erorr {:?}", kbs_signing_Key);
     }
 
     let kbs_secret = kbs_secret.unwrap();

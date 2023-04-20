@@ -35,7 +35,7 @@ impl ApplicationInfoKeeper {
         Err(Error::NotSupport)
     }
 
-    pub fn parse_envs(&mut self, _envs : &Vec<String>) -> Result<()>{
+    pub fn init(&mut self, _envs : &Vec<String>, _cid: String) -> Result<()>{
         Err(Error::NotSupport)
     }
 

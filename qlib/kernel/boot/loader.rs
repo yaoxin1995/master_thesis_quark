@@ -426,7 +426,7 @@ impl Loader {
 
         {
             let mut application_info_keeper = APPLICATION_INFO_KEEPER.write();
-            application_info_keeper.parse_envs(&processSpec.Envs).unwrap();
+            application_info_keeper.init(&processSpec.Envs, processSpec.ID.clone()).unwrap();
         }
 
         let task = Task::Current();

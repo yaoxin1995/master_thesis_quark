@@ -1,12 +1,14 @@
 pub mod terminal_shield;
 pub mod https_attestation_provisioning_cli;
-pub mod cryptographic_utilities;
+mod cryptographic_utilities;
 pub mod exec_shield;
 pub mod inode_tracker;
 pub mod sev_guest;
 pub mod secret_injection;
 pub mod software_measurement_manager;
+pub mod sys_attestation_report;
 mod kbs_secret;
+
 
 use self::exec_shield::*;
 use self::terminal_shield::*;
@@ -41,7 +43,8 @@ pub struct ApplicationInfoKeeper {
     kbs_port: u16,
     kbs_cmd_env_based_secret_path: Option<String>,
     kbs_file_based_secret_paths: Vec<String>,
-    kbs_policy_path: Option<String>
+    kbs_policy_path: Option<String>,
+    cid: String,
 }
 
 
@@ -85,11 +88,14 @@ impl ApplicationInfoKeeper {
     }
 
 
-    pub fn parse_envs(&mut self, envs : &Vec<String>) -> Result<()>{
+    pub fn init(&mut self, envs : &Vec<String>, cid: String) -> Result<()>{
 
         if envs.len() == 0 {
             return  Err(Error::Common("parse_envs, envs.len() == 0".to_string()));
         }
+
+
+        self.cid = cid;
 
         let mut found_app_name = false;
         let mut found_ip_port = false;

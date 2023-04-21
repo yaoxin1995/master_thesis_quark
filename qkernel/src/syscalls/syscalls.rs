@@ -54,12 +54,13 @@ use super::super::syscalls::sys_tls::*;
 use super::super::syscalls::sys_utsname::*;
 use super::super::syscalls::sys_write::*;
 use super::super::syscalls::sys_xattr::*;
-use super::super::syscalls::sys_attestation_report::*;
 
 use super::super::qlib::common::*;
 use super::super::qlib::linux_def::*;
 use super::super::qlib::SysCallID;
 use super::super::task::*;
+
+use crate::shield::sys_attestation_report::*;
 
 //#[repr(align(128))]
 #[derive(Debug)]

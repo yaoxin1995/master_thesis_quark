@@ -58,7 +58,6 @@ pub struct SoftwareBasedAttestationReport {
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct Requst {
-    //  AMD SNP: 2, TDX: 3, See https_attestation_provisioning_cli::Tee
     pub software_based_report_requered: bool,
     pub use_user_provided_signing_key: bool,
     pub signing_key_length: usize,
@@ -99,17 +98,13 @@ fn copy_user_data_from_container(task: &Task, addr: u64) -> Result<String> {
 }
 
 fn copy_attesation_report_to_container(task: &Task, tee_type: https_attestation_provisioning_cli::Tee, report_adr: u64, attestation_report: String) -> Result<()> {
-    //let mut s: &mut LibcStat = task.GetTypeMut(statAddr)?;
+
     debug!("copy_attesation_report_to_container: start");
     let mut report_info: Report = Report::default();
-    //*s = LibcStat::default();
-
     report_info.tee_type = tee_type as u64;
 
     let report_bytes = attestation_report.as_bytes();
-    
     report_info.report_length = report_bytes.len() as u64;
-
     report_info.report[..report_bytes.len()].clone_from_slice(report_bytes);
 
     task.CopyOutObj(&report_info, report_adr)?;
@@ -234,7 +229,6 @@ fn get_haredware_based_report (user_data: Vec<u8>) -> Result<String> {
  * arg2:  `Requst` the requrement from user
  * arg3:  returned attestation report and it's info  
  */
-
 pub fn SysAttestationReport(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
     let user_data_addr = args.arg0 as u64;
     let size = args.arg1 as u64;
@@ -276,6 +270,5 @@ pub fn SysAttestationReport(task: &mut Task, args: &SyscallArguments) -> Result<
         debug!("SysAttestationReport: copy_attesation_report_to_container failed");
         return  Err(Error::SysError(SysErr::EIO));
     }
-
     Ok(0)
 }

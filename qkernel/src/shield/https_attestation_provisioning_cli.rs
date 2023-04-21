@@ -929,7 +929,7 @@ fn get_policy(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSh
         .map_err(|e| Error::Common(format!("get_policy base64::decode failed to get secret {:?}", e)))?;
     let policy: KbsPolicy = serde_json::from_slice(&bytes).map_err(|e| Error::Common(format!("get_policy serde_json::from_slice failed to get secret {:?}", e)))?;
 
-    log::debug!("get_policy policy from kbs {:?}", policy);
+    log::info!("get_policy policy from kbs {:?}", policy);
 
 
     Ok(policy)
@@ -969,7 +969,7 @@ fn get_cmd_env_based_secret(cmd_url_in_kbs: String, tls: &mut TlsConnection<Shie
         .map_err(|e| Error::Common(format!("get_cmd_env_based_secret provisioning_http_client, attestation phase 2: parse resp get error: {:?}", e)))?;
 
     let http_get_resp = String::from_utf8_lossy(&secret).to_string();
-    log::debug!("get_cmd_env_based_secret provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, resp_len);
+    log::info!("get_cmd_env_based_secret provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, resp_len);
 
     let bytes = base64::decode(secret)
         .map_err(|e| Error::Common(format!("get_cmd_env_based_secret base64::decode failed to get secret {:?}", e)))?;
@@ -996,7 +996,7 @@ fn get_file_based_secret(file_based_secret_url_in_kbs: Vec<String>, tls: &mut Tl
             .map_err(|e| Error::Common(format!("get_file_based_secret provisioning_http_client, attestation phase 2: parse resp get error: {:?}", e)))?;
     
         let http_get_resp = String::from_utf8_lossy(&file_based_secret).to_string();
-        log::debug!("get_file_based_secret provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, resp_len);
+        log::info!("get_file_based_secret provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, resp_len);
     
         let file_based_secret_in_bytes = base64::decode(file_based_secret)
             .map_err(|e| Error::Common(format!("get_file_based_secret base64::decode failed to get secret {:?}", e)))?;
@@ -1059,6 +1059,11 @@ fn get_kbs_signing_key(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Ae
 
 
     log::debug!("get_kbs_signing_key from kbs {}", &*to_private_key.to_openssh(ssh_key::LineEnding::LF).unwrap());
+
+    {
+        let mut kbs_signing_key_keeper = super::sys_attestation_report::KBS_SIGNING_KEY_KEEPER.write();
+        kbs_signing_key_keeper.set_kbs_signing_key(secret).unwrap();
+    }
 
     Ok(to_private_key)
 }
@@ -1157,7 +1162,7 @@ pub fn provisioning_http_client(task: &Task, software_maasurement: &str) -> Resu
     }
 
 
-    log::debug!("provisioning_http_client policy for kbs {:?}", shield_policy);
+    log::info!("provisioning_http_client policy for kbs {:?}", shield_policy);
 
     Ok(shield_policy)
 }

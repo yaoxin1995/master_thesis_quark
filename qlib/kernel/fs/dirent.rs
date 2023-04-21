@@ -1228,8 +1228,12 @@ impl Dirent {
                 None => (),
                 Some(p) => {
                     let name = self.Name();
-                    p.Watches()
-                        .Notify(&name, event, cookie, et, self.IsDeleted());
+                    debug!("notify parent");
+                    p.Watches().Notify(&name,
+                                               event,
+                                               cookie,
+                                               et,
+                                               self.IsDeleted());
                 }
             }
 

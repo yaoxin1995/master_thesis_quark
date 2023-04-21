@@ -330,6 +330,8 @@ pub fn Load(
         app_loaded = app_info_keeper.is_application_loaded().unwrap();
     }
 
+    info!("Load app_name {:?}, name {:?}, app_loaded {:?}", app_name, name, app_loaded);
+      
     // trigger remote attestation and secret provisioning if the kernel is going to launch application binary
     if app_name.eq(name) && !app_loaded {
 

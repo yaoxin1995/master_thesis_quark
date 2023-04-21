@@ -1223,7 +1223,7 @@ impl Dirent {
                 None => (),
                 Some(p) => {
                     let name = self.Name();
-                    info!("notify parent");
+                    debug!("notify parent");
                     p.Watches().Notify(&name,
                                                event,
                                                cookie,

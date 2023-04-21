@@ -174,13 +174,17 @@ impl SoftwareMeasurementManager {
     pub fn measure_shared_lib(&mut self, start_addr: u64, file: &File, task: &Task, fixed: bool, mmmap_len: u64) -> Result<()> {
 
         let uattr = file.UnstableAttr(task)?;
-        let shared_lib_size = uattr.Size;
+        let real_mmap_size = if uattr.Size as u64 > mmmap_len {
+            mmmap_len
+        } else {
+            uattr.Size as u64
+        };
 
         // let length = match Addr(shared_lib_size).RoundDown() {
         //     Err(_) => return Err(Error::SysError(SysErr::ENOMEM)),
         //     Ok(l) => l.0,
         // };
-        debug!("measure_shared_lib, addr {:x}, shared_lib_size {:x}, fixed {:?}, mmmap_len {:x}", start_addr, shared_lib_size, fixed, mmmap_len);
+        debug!("measure_shared_lib, addr {:x}, shared_lib_size {:x}, fixed {:?}, mmmap_len {:x}", start_addr, real_mmap_size, fixed, mmmap_len);
         
         let data: Result<Vec<u8>>;
         if fixed {
@@ -191,7 +195,7 @@ impl SoftwareMeasurementManager {
 
             data = task.CopyInVec(start_addr, length as usize);
         } else {
-            data = task.CopyInVec(start_addr, shared_lib_size as usize);
+            data = task.CopyInVec(start_addr, real_mmap_size as usize);
         }
 
         if data.is_err() {

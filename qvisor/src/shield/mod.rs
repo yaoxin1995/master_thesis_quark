@@ -92,6 +92,6 @@ pub fn hash_chunks(_chunks: Vec<Vec<u8>>) -> String {
 	return "".to_string();
 } 
 
-pub fn policy_provisioning (_policy: &Policy) -> Result<()> {
+pub fn policy_provisioning (_policy: &KbsPolicy) -> Result<()> {
     Err(Error::NotSupport)
 }

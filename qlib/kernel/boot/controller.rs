@@ -152,8 +152,6 @@ pub fn SignalHandler(_: *const u8) {
 
 pub fn ControlMsgHandler(fd: *const u8) {
     let fd = fd as i32;
-    
-    info!("policy in qkernel: {:?}", SHARESPACE.k8s_policy.read());
     let task = Task::Current();
     let mut msg = ControlMsg::default();
     Kernel::HostSpace::ReadControlMsg(fd, &mut msg as * mut _ as u64);
@@ -236,14 +234,9 @@ pub fn ControlMsgHandler(fd: *const u8) {
 
                 // policy checker specified
         Payload::ExecAthenAcCheck(AuthAcCheckArgs) => {
-            let is_allowd;
-            {
-                is_allowd = EXEC_AUTH_AC.write().exec_req_authentication(AuthAcCheckArgs);
+            let is_allowed = exec_req_authentication(AuthAcCheckArgs);
                         
-            }
-
-
-            WriteControlMsgResp(fd, &&UCallResp::ExecAthenAcCheckResp(is_allowd), true);
+            WriteControlMsgResp(fd, &&UCallResp::ExecAthenAcCheckResp(is_allowed), true);
         }
         Payload::ProcessIncommingTerminalIoFrame(args) => {
             info!("Payload::ProcessIncommingTerminalIoFrame start, pid {}", args.pid);

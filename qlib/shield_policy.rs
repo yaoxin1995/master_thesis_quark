@@ -4,12 +4,19 @@ use alloc::vec::Vec;
 use crate::shield::exec_shield::*;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+pub struct PolicyUpdateResult {
+    pub result: bool,
+    pub session_id: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub enum StdioType {
     #[default]
     SandboxStdio, // the stdio of root conainer, i.e., "pause" container
     ContaienrStdio,  // the stio of subcontainers
     ExecProcessStdio,   // the stdio of exec process
     SessionAllocationStdio (ExecSession), // tue stdio of session allocation req
+    PolicyUpdate(PolicyUpdateResult),  // indicate if update is succeed
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
@@ -47,7 +54,7 @@ pub enum Role {
     Unprivileged,  // define a black list
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct PrivilegedUserConfig {
     pub enable_terminal: bool,
     pub enable_single_shot_command_line_mode: bool,
@@ -56,14 +63,14 @@ pub struct PrivilegedUserConfig {
     pub enable_container_logs_encryption:bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct UnprivilegedUserConfig {
     pub enable_terminal: bool,
     pub enable_single_shot_command_line_mode: bool,
     pub single_shot_command_line_mode_configs : SingleShotCommandLineModeConfig,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct SingleShotCommandLineModeConfig {
     pub allowed_cmd: Vec<String>,
     pub allowed_dir: Vec<String>,
@@ -92,10 +99,32 @@ pub struct Policy {
     pub secret: Secret,
 }
 
+
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+pub struct EnvCmdBasedSecrets {
+    pub env_variables: Vec<String>,
+    pub cmd_arg: Vec<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+pub struct KbsSecrets {
+    pub env_cmd_secrets: Option<EnvCmdBasedSecrets>,
+    pub config_fils: Option<Vec<ConfigFile>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+pub struct KbsPolicy {
+    pub enable_policy_updata: bool,
+    pub privileged_user_config: PrivilegedUserConfig,
+    pub unprivileged_user_config:  UnprivilegedUserConfig,
+    pub privileged_user_key_slice: String,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub enum ExecRequestType {
     #[default]
     Terminal,  // define a white list
     SingleShotCmdMode,  // define a black list
-    SessionAllocationReq(ExecSession), 
+    SessionAllocationReq(ExecSession),
+    PolicyUpdate(PolicyUpdate),   // indicate if the pilicy update succed  
 }

@@ -342,15 +342,15 @@ pub fn Load(
         debug!("Load attestation begin, the software measurement is {:?}", software_measurement);
 
         // attestation, panic if attestation failed
-        let policy = https_attestation_provisioning_cli::provisioning_http_client(task, &software_measurement);
-        if policy.is_err() {
-            info!("https_attestation_provisioning_cli::provisioning_http_client(task) got error {:?}", policy);
-            return Err(policy.err().unwrap());
+        let res = https_attestation_provisioning_cli::provisioning_http_client(task, &software_measurement);
+        if res.is_err() {
+            info!("https_attestation_provisioning_cli::provisioning_http_client(task) got error {:?}", res);
+            return Err(res.err().unwrap());
         }
 
-        let policy = policy.unwrap();
+        let (shield_policy, secret) = res.unwrap();
         // updata the policy
-        policy_provisioning(&policy).unwrap();
+        policy_provisioning(&shield_policy).unwrap();
 
         // secret injection
 
@@ -358,7 +358,7 @@ pub fn Load(
         {
             let mut secret_injector =  SECRET_KEEPER.write();
 
-            let res = secret_injector.bookkeep_file_based_secret(policy.secret.clone());
+            let res = secret_injector.bookkeep_file_based_secret(secret.clone());
             if res.is_err() {
                 info!("Load: failed to call file_based_secret_injection");
             }
@@ -374,12 +374,18 @@ pub fn Load(
         }
 
         // env based secret injection
-        let mut env_secrets = policy.secret.env_variables.clone();
-        envv.append(&mut env_secrets);
+        if secret.env_cmd_secrets.is_some() {
 
-        // app args based secret injection
-        let mut arg_secrets = policy.secret.cmd_arg.clone();
-        argv.append(&mut arg_secrets);
+            let cmd_envs = secret.env_cmd_secrets.as_ref().unwrap();
+            let mut env_secrets = cmd_envs.env_variables.clone();
+            envv.append(&mut env_secrets);
+    
+            // app args based secret injection
+            let mut arg_secrets = cmd_envs.cmd_arg.clone();
+            argv.append(&mut arg_secrets);
+
+        }
+
 
         {
             let mut  app_info_keeper = APPLICATION_INFO_KEEPER.write();

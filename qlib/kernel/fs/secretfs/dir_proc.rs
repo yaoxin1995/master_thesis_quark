@@ -63,7 +63,6 @@ impl SecretDirDataNode {
             Self::ProcNode(inner) => {
                 return Some(inner.clone())
             }
-            _ => None,
         }
 
     }

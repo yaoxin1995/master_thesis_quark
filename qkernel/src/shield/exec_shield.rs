@@ -3,6 +3,7 @@ use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use alloc::collections::btree_map::BTreeMap;
+use spin::RwLockWriteGuard;
 use crate::aes_gcm::{
     aead::{OsRng, generic_array::{GenericArray, typenum::U32}, rand_core::RngCore},
 };
@@ -23,6 +24,7 @@ const ENCRYPTED_MESSAGE_INDEX: usize = 2;
 const NONCE_INDEX: usize = 3;
 const PRIVILEGE_KEYWORD: &str = "Privileged ";
 const SESSION_ALLOCATION_REQUEST: &str = "Login";
+const POLICYUPDATE_REQUEST: &str = "PolicyUpdate";
 
 lazy_static! {
     pub static ref EXEC_AUTH_AC:  RwLock<ExecAthentityAcChekcer> = RwLock::new(ExecAthentityAcChekcer::default());
@@ -33,14 +35,14 @@ lazy_static! {
 
 #[derive(Debug, Default)]
 pub struct StdoutExecResultShiled {
-    policy: Policy,
+    policy: KbsPolicy,
     key: GenericArray<u8, U32>,
 }
 
 
 impl StdoutExecResultShiled{
 
-    pub fn init(&mut self, policy: &Policy, key: &GenericArray<u8, U32>) -> () {
+    pub fn init(&mut self, policy: &KbsPolicy, key: &GenericArray<u8, U32>) -> () {
     
         self.policy = policy.clone();
        // self.key = policy.unwrap().secret.file_encryption_key.as_bytes().to_vec();
@@ -50,7 +52,7 @@ impl StdoutExecResultShiled{
 
     pub fn encryptContainerStdouterr (&self, src: DataBuff, user_type: Option<UserType>, stdio_type: StdioType) -> DataBuff {
 
-        info!("encryptContainerStdouterr 00000000, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
+        debug!("encryptContainerStdouterr 00000000, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
         // case 0: if this is a unprivileged exec req in single cmd mode
         if user_type.is_some() && user_type.as_ref().unwrap().eq(&UserType::Unprivileged) && stdio_type ==  StdioType::ExecProcessStdio {
             info!("case 0: if this is a unprivileged exec req in single cmd mode, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
@@ -60,25 +62,25 @@ impl StdoutExecResultShiled{
         match stdio_type {
             // case 1: if this is subcontainer stdout / stderr
             StdioType::ContaienrStdio => {
-                info!("case 1:if this is subcontainer stdout / stderr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
+                debug!("case 1:if this is subcontainer stdout / stderr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
                 if self.policy.privileged_user_config.enable_container_logs_encryption == false {
                     return src;
                 }
             },
             // case 2: if this is a privileged exec req in single cmd mode
             StdioType::ExecProcessStdio => {
-                info!("case 2:if this is subcontainer stdout / stderr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
+                debug!("case 2:if this is subcontainer stdout / stderr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
                 if self.policy.privileged_user_config.exec_result_encryption == false {
                     return src;
                 }
             },
             // case 3: if this is root container stdout / stderr
             StdioType::SandboxStdio => {
-                info!("case 3:if this is root container stdout / stderr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
+                debug!("case 3:if this is root container stdout / stderr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
                 return src;
             },
             StdioType::SessionAllocationStdio(ref s) => {
-                info!("case 4:if this is session allocation request, user_type:{:?}, stdio_type {:?}, session {:?}", user_type, stdio_type, s);
+                debug!("case 4:if this is session allocation request, user_type:{:?}, stdio_type {:?}, session {:?}", user_type, stdio_type, s);
 
                 let encoded_session: Vec<u8> = postcard::to_allocvec(s).unwrap();
                 let encrypted_session = prepareEncodedIoFrame(&encoded_session[..], &self.key).unwrap();
@@ -86,14 +88,36 @@ impl StdoutExecResultShiled{
                 let mut buf= DataBuff::New(encrypted_session.len());
                 buf.buf = encrypted_session;
                 return buf;
+            },
+            StdioType::PolicyUpdate(ref update_res) => {
+
+
+                let exit;
+                {
+                    exit = EXEC_AUTH_AC.read().auth_session.contains_key(&update_res.session_id);
+                }
+                debug!("case 5:if this is PolicyUpdate request, user_type:{:?}, stdio_type {:?}, session exist {:?}", user_type, stdio_type, exit);
+
+
+                let result = if update_res.result {
+                    "policy update is succeed".to_string()
+
+                } else {
+                    "qkernel doesn't allow policy update".to_string()
+                };
+
+                let encodedOutBoundDate = prepareEncodedIoFrame(result.as_bytes(), &self.key).unwrap();
+                let mut buf = DataBuff::New(encodedOutBoundDate.len());
+                buf.buf = encodedOutBoundDate.clone();            
+                return buf;
             }
         }
-        info!("case5 encryptContainerStdouterr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
+        debug!("case5 encryptContainerStdouterr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
         let rawData= src.buf.clone();
 
         let str = String::from_utf8_lossy(&rawData).to_string();
 
-        info!("stdout is : {:?}", str);
+        debug!("stdout is : {:?}", str);
 
         let encodedOutBoundDate = prepareEncodedIoFrame(rawData.as_slice(), &self.key).unwrap();
         assert!(encodedOutBoundDate.len() != 0);
@@ -124,6 +148,13 @@ pub struct ExecSession {
     counter: u32,
 }
 
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+pub struct PolicyUpdate {
+    pub new_policy: KbsPolicy,
+    pub is_updated: bool,
+    pub session_id: u32
+}
 
 pub fn verify_hmac (key_slice : &[u8], message: &String, base64_encoded_code: &String) -> bool {
     type HmacSha256 = Hmac<Sha256>;
@@ -192,7 +223,7 @@ pub fn verify_privileged_exec_cmd(privileged_cmd: &mut Vec<String>, key_slice: &
 
 #[derive(Debug, Default)]
 pub struct ExecAthentityAcChekcer {
-    policy: Policy,
+    policy: KbsPolicy,
     pub hmac_key_slice: Vec<u8>,
     pub decryption_key: GenericArray<u8, U32>,
     pub authenticated_reqs: BTreeMap<String, AuthenticatedExecReq>,
@@ -219,7 +250,7 @@ pub struct AuthenticatedExecReq {
 }
 
 impl ExecAthentityAcChekcer{
-    pub fn init(&mut self, hmac_key_slice: &Vec<u8>, decryption_key: &GenericArray<u8, U32>, policy: &Policy) -> () {
+    pub fn init(&mut self, hmac_key_slice: &Vec<u8>, decryption_key: &GenericArray<u8, U32>, policy: &KbsPolicy) -> () {
         self.authenticated_reqs= BTreeMap::new();
         self.hmac_key_slice = hmac_key_slice.clone();
         self.decryption_key = decryption_key.clone();
@@ -227,203 +258,258 @@ impl ExecAthentityAcChekcer{
         self.auth_session = BTreeMap::new();
     }
 
-    pub fn exec_req_authentication (&mut self, exec_req: ExecAuthenAcCheckArgs) -> bool {
 
-        if exec_req.args.len() < 1 {
-            return false;
-        }
+    pub fn update(&mut self, hmac_key_slice: &Vec<u8>, decryption_key: &GenericArray<u8, U32>, policy: &KbsPolicy) -> () {
+        self.hmac_key_slice = hmac_key_slice.clone();
+        self.decryption_key = decryption_key.clone();
+        self.policy = policy.clone();
+    }
+}
 
-        match exec_req.args.get(PRIVILEGE_KEYWORD_INDEX).unwrap().as_str() {
-            PRIVILEGE_KEYWORD => return self.verify_privileged_req(exec_req),
-            _ => return self.verify_unprivileged_req(exec_req),
-        }
+pub fn exec_req_authentication (exec_req: ExecAuthenAcCheckArgs) -> bool {
+
+    if exec_req.args.len() < 1 {
+        return false;
     }
 
+    let mut exec_ac = EXEC_AUTH_AC.write();
 
-    fn verify_privileged_req (&mut self, exec_req_args: ExecAuthenAcCheckArgs) -> bool {
-
-        info!("verify_privileged_req, exec_req_args {:?}", exec_req_args);
-        // Hmac authentication
-        let mut privileged_cmd = exec_req_args.args.clone();
-        let mut cmd_in_plain_text = match verify_privileged_exec_cmd(&mut privileged_cmd, &self.hmac_key_slice, &self.decryption_key) {
-            Ok(args) => args,
-            Err(e) => {
-                info!("privileged req authentication failed {:?}", e);
-                return false;
-            }
-        };
-
-        // Session allocation request:
-        let cmd = cmd_in_plain_text.get(0).unwrap();
-        info!("verify_privileged_req cmd {:?} SESSION_ALLOCATION_REQUEST {:?}  cmd.eq(SESSION_ALLOCATION_REQUEST):{:?}", 
-                                cmd, SESSION_ALLOCATION_REQUEST, cmd.eq(SESSION_ALLOCATION_REQUEST));
-        let mut exec_req_args = exec_req_args.clone();
-        if cmd.eq(SESSION_ALLOCATION_REQUEST) {
-            let mut rng = OsRng;
-            let s = ExecSession {
-                session_id: rng.next_u32(),
-                counter: rng.next_u32(),
-            };
-            self.auth_session.insert(s.session_id, s.clone());
-            exec_req_args.req_type = ExecRequestType::SessionAllocationReq(s);
-            cmd_in_plain_text = vec!["ls".to_string(), "/".to_string()];
-
-        } else {
-            // Reqeust resource request:
-
-            // check if counter and session id are valid
-            const SESSION_ID_INDEX: usize = 0;
-            const SESSION_COUNTER_INDEX: usize = 1;
-
-            let session_id = cmd_in_plain_text.get(SESSION_ID_INDEX).unwrap().parse::<u32>().unwrap();
-            let counter = cmd_in_plain_text.get(SESSION_COUNTER_INDEX).unwrap().parse::<u32>().unwrap();
-
-            // replay case 1: attacker send a request that belongs to a old session (Sessions that existed before the vm was restarted)
-            if !self.auth_session.contains_key(&session_id) {
-                info!("verify_privileged_req,  replay case 1: attacker send a request that belongs to a old session (Sessions that existed before the vm was restarted");
-                return false;
-            }
-
-            let mut session = self.auth_session.remove(&session_id).unwrap();
-
-            // replay case 2: attacker send a old request that belongs to the current session
-           if counter < session.counter {
-                info!("verify_privileged_req, replay case 2: attacker send a old request that belongs to the current session , counter {:?}. session.counter {:?}",counter,  session.counter);
-                return false;
-            }
-
-            session.counter = session.counter + 1;
-
-            self.auth_session.insert(session.session_id, session.clone());
-
-            
-            cmd_in_plain_text.remove(0);
-            cmd_in_plain_text.remove(0);
-
-            info!("verify_privileged_req, cmd_in_plain_text {:?}", cmd_in_plain_text);
-        }
-
-        match exec_req_args.req_type {
-            ExecRequestType::Terminal => {
-                info!("verify_privileged_req, exec_req_args.req_type {:?}", exec_req_args.req_type);
-                let res = self.check_terminal_access_control (UserType::Privileged);
-
-                if res == false {
-                    return false;
-                }
-
-            },
-            ExecRequestType::SingleShotCmdMode =>{
-                info!("verify_privileged_req, exec_req_args.req_type {:?}", exec_req_args.req_type);
-                let allowed_cmd = &self.policy.privileged_user_config.single_shot_command_line_mode_configs.allowed_cmd;
-                let allowed_path = &self.policy.privileged_user_config.single_shot_command_line_mode_configs.allowed_dir;
-                let res = self.check_oneshot_cmd_mode_access_control(UserType::Privileged, &cmd_in_plain_text, allowed_cmd, allowed_path, &exec_req_args.cwd);
-                if res == false {
-                    return false;
-                }
-            },
-            ExecRequestType::SessionAllocationReq(ref _s) => {
-                info!("verify_privileged_req, exec_req_args.req_type {:?}", exec_req_args.req_type);
-
-            }
-            
-        }
-
-        let exec_req = AuthenticatedExecReq {
-            exec_id : exec_req_args.exec_id.clone(),
-            args: cmd_in_plain_text,
-            env: exec_req_args.env.clone(),
-            cwd: exec_req_args.cwd.clone(),
-            user_type: UserType::Privileged,
-            exec_type:exec_req_args.req_type.clone()
-        };
-
-        self.authenticated_reqs.insert(exec_req_args.exec_id, exec_req);
-
-        return true;
+    match exec_req.args.get(PRIVILEGE_KEYWORD_INDEX).unwrap().as_str() {
+        PRIVILEGE_KEYWORD => return verify_privileged_req(exec_req, &mut exec_ac),
+        _ => return verify_unprivileged_req(exec_req, &mut exec_ac),
     }
-
-    fn verify_unprivileged_req (&mut self, exec_req_args: ExecAuthenAcCheckArgs) -> bool {
-
-        info!("verify_unprivileged_req, exec_req_args {:?}", exec_req_args);
-
-        let cmd_in_plain_text = &exec_req_args.args;
-        //TODO Access Control
-        match exec_req_args.req_type {
-            ExecRequestType::Terminal => {
-                let res = self.check_terminal_access_control (UserType::Unprivileged);
-
-                if res == false {
-                    return false;
-                }
-
-            },
-            ExecRequestType::SingleShotCmdMode =>{
-                let allowed_cmd = &self.policy.unprivileged_user_config.single_shot_command_line_mode_configs.allowed_cmd;
-                let allowed_path = &self.policy.unprivileged_user_config.single_shot_command_line_mode_configs.allowed_dir;
-                let res = self.check_oneshot_cmd_mode_access_control(UserType::Unprivileged, &cmd_in_plain_text, allowed_cmd, allowed_path, &exec_req_args.cwd);
-                if res == false {
-                    return false;
-                }
-            },
-            _ => return false,            
-        }
-
-        let exec_req = AuthenticatedExecReq {
-            exec_id : exec_req_args.exec_id.clone(),
-            args: cmd_in_plain_text.clone(),
-            env: exec_req_args.env.clone(),
-            cwd: exec_req_args.cwd.clone(),
-            user_type: UserType::Unprivileged,
-            exec_type:exec_req_args.req_type.clone()
-        };
-
-        self.authenticated_reqs.insert(exec_req_args.exec_id, exec_req);
-
-        return true;
-    }
-
-
-    fn check_terminal_access_control (&self, user_type: UserType) -> bool {
-
-        match user_type {
-            UserType::Privileged => {
-                return self.policy.privileged_user_config.enable_terminal;
-            },
-            UserType::Unprivileged => {
-                return self.policy.unprivileged_user_config.enable_terminal;
-            }
-        }
-    }
-
-
-    fn check_oneshot_cmd_mode_access_control (&self, user_type: UserType, cmd : &Vec<String>, allowed_cmds: &Vec<String>, allowed_pathes: &Vec<String>, cwd: &String) -> bool {
-
-        let is_sigle_shot_cmd_enabled = match user_type {
-            UserType::Privileged => {
-                info!("check_oneshot_cmd_mode_access_control UserType::Privileged, cmd {:?}, allowed_cmds {:?}, allowed_pathes {:?} cwd {:?}", cmd, allowed_cmds, allowed_pathes, cwd);
-                self.policy.privileged_user_config.enable_single_shot_command_line_mode
-            },
-            UserType::Unprivileged => {
-                info!("check_oneshot_cmd_mode_access_control UserType::Unprivileged, cmd {:?}, allowed_cmds {:?}, allowed_pathes {:?} cwd {:?}", cmd, allowed_cmds, allowed_pathes, cwd);
-                self.policy.unprivileged_user_config.enable_single_shot_command_line_mode
-            }
-        };
-        if is_sigle_shot_cmd_enabled == false {
-            return false;
-        }
-       
-        let is_cmd_path_allowed = single_shot_cmd_check(cmd, allowed_cmds, allowed_pathes, cwd);
-
-        return is_cmd_path_allowed;
-    }
-
 }
 
 
+fn verify_privileged_req (exec_req_args: ExecAuthenAcCheckArgs, exec_ac: &mut RwLockWriteGuard<ExecAthentityAcChekcer>) -> bool {
+
+    info!("verify_privileged_req, exec_req_args {:?}", exec_req_args);
+    // Hmac authentication
+    let mut privileged_cmd = exec_req_args.args.clone();
+    let mut cmd_in_plain_text = match verify_privileged_exec_cmd(&mut privileged_cmd, &exec_ac.hmac_key_slice, &exec_ac.decryption_key) {
+        Ok(args) => args,
+        Err(e) => {
+            info!("privileged req authentication failed {:?}", e);
+            return false;
+        }
+    };
+
+    // Session allocation request:
+    let cmd = cmd_in_plain_text.get(0).unwrap();
+    info!("verify_privileged_req cmd {:?} SESSION_ALLOCATION_REQUEST {:?}  cmd.eq(SESSION_ALLOCATION_REQUEST):{:?}", 
+                            cmd, SESSION_ALLOCATION_REQUEST, cmd.eq(SESSION_ALLOCATION_REQUEST));
+    let mut exec_req_args = exec_req_args.clone();
+    if cmd.eq(SESSION_ALLOCATION_REQUEST) {
+        let mut rng = OsRng;
+        let s = ExecSession {
+            session_id: rng.next_u32(),
+            counter: rng.next_u32(),
+        };
+
+    
+        exec_ac.auth_session.insert(s.session_id, s.clone());
+
+        exec_req_args.req_type = ExecRequestType::SessionAllocationReq(s);
+        cmd_in_plain_text = vec!["ls".to_string(), "/".to_string()];
+
+    } else {
+        // Reqeust resource request:
+
+        // check if counter and session id are valid
+        const SESSION_ID_INDEX: usize = 0;
+        const SESSION_COUNTER_INDEX: usize = 1;
+
+        let session_id = cmd_in_plain_text.get(SESSION_ID_INDEX).unwrap().parse::<u32>().unwrap();
+        let counter = cmd_in_plain_text.get(SESSION_COUNTER_INDEX).unwrap().parse::<u32>().unwrap();
+
+        // replay case 1: attacker send a request that belongs to a old session (Sessions that existed before the vm was restarted)
+        if !exec_ac.auth_session.contains_key(&session_id) {
+            info!("verify_privileged_req,  replay case 1: attacker send a request that belongs to a old session (Sessions that existed before the vm was restarted");
+            return false;
+        }
+
+        let mut session = exec_ac.auth_session.remove(&session_id).unwrap();
+
+        // replay case 2: attacker send a old request that belongs to the current session
+        if counter < session.counter {
+            info!("verify_privileged_req, replay case 2: attacker send a old request that belongs to the current session , counter {:?}. session.counter {:?}",counter,  session.counter);
+            return false;
+        }
+
+        session.counter = session.counter + 1;
+
+        exec_ac.auth_session.insert(session.session_id, session.clone());
+
+        
+        cmd_in_plain_text.remove(0);
+        cmd_in_plain_text.remove(0);
+
+        let cmd = cmd_in_plain_text[0].clone();
+
+        if cmd.eq(POLICYUPDATE_REQUEST) {
+            info!("verify_privileged_req, cmd.eq(POLICYUPDATE_REQUEST) cmd_in_plain_text {:?}", cmd_in_plain_text[1]);
+
+            let policy_in_base64_string = &cmd_in_plain_text[1];
+            let policy_in_json_slice = Base64::decode_vec(policy_in_base64_string).unwrap();
+
+            let policy = serde_json::from_slice(&policy_in_json_slice).unwrap();
+
+            let policy_update = PolicyUpdate {
+                new_policy: policy,
+                is_updated: false,
+                session_id: session_id,
+            };
+
+            exec_req_args.req_type = ExecRequestType::PolicyUpdate(policy_update);
+            cmd_in_plain_text = vec!["ls".to_string(), "/".to_string()];
+
+            info!("verify_privileged_req, cmd.eq(POLICYUPDATE_REQUEST) cmd_in_plain_text {:?}, session id exist {:?}", cmd_in_plain_text[1], exec_ac.auth_session.contains_key(&session_id));
+
+        } 
+        info!("verify_privileged_req, cmd_in_plain_text {:?}", cmd_in_plain_text);
+    }
+
+    match exec_req_args.req_type {
+        ExecRequestType::Terminal => {
+            info!("verify_privileged_req, exec_req_args.req_type {:?}", exec_req_args.req_type);
+            let policy = &exec_ac.policy;
+            let res = check_terminal_access_control (UserType::Privileged, policy);
+
+            if res == false {
+                return false;
+            }
+
+        },
+        ExecRequestType::SingleShotCmdMode =>{
+            info!("verify_privileged_req, exec_req_args.req_type {:?}", exec_req_args.req_type);
+            let policy = &exec_ac.policy;
+            let res = check_oneshot_cmd_mode_access_control(UserType::Privileged, &cmd_in_plain_text, policy, &exec_req_args.cwd);
+            if res == false {
+                return false;
+            }
+        },
+        ExecRequestType::SessionAllocationReq(ref _s) => {
+            info!("verify_privileged_req, exec_req_args.req_type {:?}", exec_req_args.req_type);
+
+        },
+        ExecRequestType::PolicyUpdate(ref arg) => {
+            info!("verify_privileged_req, exec_req_args.req_type {:?}, policy {:?}", exec_req_args.req_type, arg);
+
+            let policy_update;
+            if exec_ac.policy.enable_policy_updata {
+                super::policy_update(&arg.new_policy, exec_ac).unwrap();
+                policy_update = PolicyUpdate {
+                    new_policy: arg.new_policy.clone(),
+                    is_updated: true,
+                    session_id: arg.session_id
+                };
+
+                info!("verify_privileged_req session id exist {:?}", exec_ac.auth_session.contains_key(&arg.session_id));
+                exec_req_args.req_type = ExecRequestType::PolicyUpdate(policy_update);
+            }
 
 
-pub fn single_shot_cmd_check (cmd_args: &Vec<String>,  allowed_cmds: &Vec<String>, allowed_dir: &Vec<String>, cwd: &String) -> bool {
+
+        }
+        
+    }
+
+    let exec_req = AuthenticatedExecReq {
+        exec_id : exec_req_args.exec_id.clone(),
+        args: cmd_in_plain_text,
+        env: exec_req_args.env.clone(),
+        cwd: exec_req_args.cwd.clone(),
+        user_type: UserType::Privileged,
+        exec_type:exec_req_args.req_type.clone()
+    };
+
+    exec_ac.authenticated_reqs.insert(exec_req_args.exec_id, exec_req);
+    return true;
+}
+
+fn verify_unprivileged_req (exec_req_args: ExecAuthenAcCheckArgs, exec_ac: &mut RwLockWriteGuard<ExecAthentityAcChekcer>) -> bool {
+
+    info!("verify_unprivileged_req, exec_req_args {:?}", exec_req_args);
+
+    let cmd_in_plain_text = &exec_req_args.args;
+    let policy = &exec_ac.policy;
+    //TODO Access Control
+    match exec_req_args.req_type {
+        ExecRequestType::Terminal => {
+            let res = check_terminal_access_control (UserType::Unprivileged, policy);
+
+            if res == false {
+                return false;
+            }
+
+        },
+        ExecRequestType::SingleShotCmdMode =>{
+            let res = check_oneshot_cmd_mode_access_control(UserType::Unprivileged, &cmd_in_plain_text, policy, &exec_req_args.cwd);
+            if res == false {
+                return false;
+            }
+        },
+        _ => return false,            
+    }
+
+    let exec_req = AuthenticatedExecReq {
+        exec_id : exec_req_args.exec_id.clone(),
+        args: cmd_in_plain_text.clone(),
+        env: exec_req_args.env.clone(),
+        cwd: exec_req_args.cwd.clone(),
+        user_type: UserType::Unprivileged,
+        exec_type:exec_req_args.req_type.clone()
+    };
+
+    exec_ac.authenticated_reqs.insert(exec_req_args.exec_id, exec_req);
+
+    return true;
+}
+
+
+fn check_terminal_access_control (user_type: UserType, policy: &KbsPolicy) -> bool {
+
+    match user_type {
+        UserType::Privileged => {
+            return policy.privileged_user_config.enable_terminal;
+        },
+        UserType::Unprivileged => {
+            return policy.unprivileged_user_config.enable_terminal;
+        }
+    }
+}
+
+
+fn check_oneshot_cmd_mode_access_control (user_type: UserType, cmd : &Vec<String>, policy: &KbsPolicy, cwd: &String) -> bool {
+
+
+    let allowed_cmds;
+    let allowed_pathes;
+    let is_sigle_shot_cmd_enabled = match user_type {
+        UserType::Privileged => {
+            allowed_cmds = &policy.privileged_user_config.single_shot_command_line_mode_configs.allowed_cmd;
+            allowed_pathes = &policy.privileged_user_config.single_shot_command_line_mode_configs.allowed_dir;
+
+            info!("check_oneshot_cmd_mode_access_control UserType::Privileged, cmd {:?}, allowed_cmds {:?}, allowed_pathes {:?} cwd {:?}", cmd, allowed_cmds, allowed_pathes, cwd);
+            policy.privileged_user_config.enable_single_shot_command_line_mode
+        },
+        UserType::Unprivileged => {
+            allowed_cmds = &policy.unprivileged_user_config.single_shot_command_line_mode_configs.allowed_cmd;
+            allowed_pathes = &policy.unprivileged_user_config.single_shot_command_line_mode_configs.allowed_dir;
+            info!("check_oneshot_cmd_mode_access_control UserType::Unprivileged, cmd {:?}, allowed_cmds {:?}, allowed_pathes {:?} cwd {:?}", cmd, allowed_cmds, allowed_pathes, cwd);
+            policy.unprivileged_user_config.enable_single_shot_command_line_mode
+        }
+    };
+    if is_sigle_shot_cmd_enabled == false {
+        return false;
+    }
+    
+    let is_cmd_path_allowed = single_shot_cmd_check(cmd, allowed_cmds, allowed_pathes, cwd);
+
+    return is_cmd_path_allowed;
+}
+
+fn single_shot_cmd_check (cmd_args: &Vec<String>,  allowed_cmds: &Vec<String>, allowed_dir: &Vec<String>, cwd: &String) -> bool {
 
     if cmd_args.len() == 0 {
         return false;
@@ -556,7 +642,7 @@ fn is_subpaht_check (abs_paths_in_cmd: &Vec<String>, allowed_pathes: &Vec<String
 // second. If it is a subpath, then true is returned along with a clean
 // relative path from the second path to the first. Otherwise false is
 // returned.
-pub fn is_subpath(subpath: &str, path: &str) -> (String, bool) {
+fn is_subpath(subpath: &str, path: &str) -> (String, bool) {
 
     let mut cleanPath = Clean(path);
     let cleanSubpath = Clean(subpath);

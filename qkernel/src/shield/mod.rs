@@ -7,7 +7,6 @@ pub mod sev_guest;
 pub mod secret_injection;
 pub mod software_measurement_manager;
 pub mod sys_attestation_report;
-mod kbs_secret;
 
 
 use self::exec_shield::*;
@@ -23,6 +22,7 @@ use crate::qlib::common::*;
 use spin::rwlock::RwLock;
 use alloc::string::ToString;
 use core::convert::TryInto;
+use spin::rwlock::RwLockWriteGuard;
 
 lazy_static! {
     pub static ref APPLICATION_INFO_KEEPER:  RwLock<ApplicationInfoKeeper> = RwLock::new(ApplicationInfoKeeper::default());
@@ -169,7 +169,7 @@ pub fn init_shielding_layer () ->() {
     const KEY_SLICE: &[u8; 32] = b"a very simple secret key to use!";
     const DEDAULT_VMPK: u32 = 0;
 
-    let default_policy = Policy::default();
+    let default_policy = KbsPolicy::default();
 
     let encryption_key = Key::<Aes256Gcm>::from_slice(KEY_SLICE).clone();
     info!("init_shielding_layer init shielding layer use default policy:{:?}" ,default_policy);
@@ -195,7 +195,7 @@ pub fn init_shielding_layer () ->() {
 }
 
 
-pub fn policy_provisioning (policy: &Policy) -> Result<()> {
+pub fn policy_provisioning (policy: &KbsPolicy) -> Result<()> {
 
     info!("policy_provisioning init shielding layer use  policy:{:?} from kbs" ,policy);
     let key_slice = policy.privileged_user_key_slice.as_bytes();
@@ -236,6 +236,48 @@ pub fn policy_provisioning (policy: &Policy) -> Result<()> {
         let mut stdout_exec_result_shield = stdout_exec_result_shield.unwrap();
 
         stdout_exec_result_shield.init(policy, &encryption_key);
+
+    }
+
+    Ok(())
+}
+
+
+
+pub fn policy_update (new_policy: &KbsPolicy,  exec_ac: &mut RwLockWriteGuard<ExecAthentityAcChekcer>) -> Result<()> {
+
+    info!("policy_update shielding layer use  policy:{:?} from secure client" ,new_policy);  
+
+    let key_slice = new_policy.privileged_user_key_slice.as_bytes();
+    let encryption_key = Key::<Aes256Gcm>::from_slice(key_slice).clone();
+
+    {
+        let mut termianl_shield = TERMINAL_SHIELD.try_write();
+        while !termianl_shield.is_some() {
+            termianl_shield = TERMINAL_SHIELD.try_write();
+        }
+
+        let mut termianl_shield = termianl_shield.unwrap();
+
+        termianl_shield.init(new_policy, &encryption_key);
+
+    }
+
+
+    
+    exec_ac.update(&key_slice.to_vec(), &encryption_key, new_policy);
+
+
+
+    {
+        let mut stdout_exec_result_shield = STDOUT_EXEC_RESULT_SHIELD.try_write();
+        while !stdout_exec_result_shield.is_some() {
+            stdout_exec_result_shield = STDOUT_EXEC_RESULT_SHIELD.try_write();
+        }
+
+        let mut stdout_exec_result_shield = stdout_exec_result_shield.unwrap();
+
+        stdout_exec_result_shield.init(new_policy, &encryption_key);
 
     }
 

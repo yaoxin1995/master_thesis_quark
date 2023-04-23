@@ -26,7 +26,6 @@ use qlib::kernel::task::*;
 use qlib::linux_def::*;
 use qlib::shield_policy::*;
 use super::APPLICATION_INFO_KEEPER;
-use super::kbs_secret::*;
 use ssh_key;
 
 
@@ -1071,7 +1070,7 @@ fn get_kbs_signing_key(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Ae
 
 
 
-pub fn provisioning_http_client(task: &Task, software_maasurement: &str) -> Result<Policy> {
+pub fn provisioning_http_client(task: &Task, software_maasurement: &str) -> Result<(KbsPolicy, KbsSecrets)> {
 
     log::debug!("provisioning_http_client start");
 
@@ -1144,27 +1143,27 @@ pub fn provisioning_http_client(task: &Task, software_maasurement: &str) -> Resu
     let kbs_policy = kbs_policy.unwrap();
 
 
-    let mut shield_policy = Policy::default();
-    shield_policy.enable_policy_updata = kbs_policy.enable_policy_updata;
-    shield_policy.privileged_user_config = kbs_policy.privileged_user_config.clone();
-    shield_policy.privileged_user_key_slice = kbs_policy.privileged_user_key_slice.clone();
-    shield_policy.unprivileged_user_config = kbs_policy.unprivileged_user_config.clone();
+    // let mut shield_policy = Policy::default();
+    // shield_policy.enable_policy_updata = kbs_policy.enable_policy_updata;
+    // shield_policy.privileged_user_config = kbs_policy.privileged_user_config.clone();
+    // shield_policy.privileged_user_key_slice = kbs_policy.privileged_user_key_slice.clone();
+    // shield_policy.unprivileged_user_config = kbs_policy.unprivileged_user_config.clone();
 
-    if kbs_secret.env_cmd_secrets.is_some() {
-        let secrets = kbs_secret.env_cmd_secrets.as_ref().unwrap();
+    // if kbs_secret.env_cmd_secrets.is_some() {
+    //     let secrets = kbs_secret.env_cmd_secrets.as_ref().unwrap();
 
-        shield_policy.secret.env_variables = secrets.env_variables.clone();
-        shield_policy.secret.cmd_arg = secrets.cmd_arg.clone();
-    }
+    //     shield_policy.secret.env_variables = secrets.env_variables.clone();
+    //     shield_policy.secret.cmd_arg = secrets.cmd_arg.clone();
+    // }
 
-    if kbs_secret.config_fils.is_some() {
-        shield_policy.secret.config_fils = kbs_secret.config_fils.as_ref().unwrap().clone();
-    }
+    // if kbs_secret.config_fils.is_some() {
+    //     shield_policy.secret.config_fils = kbs_secret.config_fils.as_ref().unwrap().clone();
+    // }
 
 
-    log::info!("provisioning_http_client policy for kbs {:?}", shield_policy);
+    log::info!("provisioning_http_client policy for kbs kbs_policy {:?}, kbs_secret {:?}", kbs_policy, kbs_secret);
 
-    Ok(shield_policy)
+    Ok((kbs_policy, kbs_secret))
 }
 
 

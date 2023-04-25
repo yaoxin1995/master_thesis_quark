@@ -13,7 +13,7 @@ lazy_static! {
 #[derive(Debug, Default)]
 pub struct GuestSyscallInterceptor {
     policy: BackEndSyscallInterceptorConfig,
-    application_pid: u64,
+    application_pid: i32,
     is_init: bool,
 }
 
@@ -24,15 +24,16 @@ pub fn syscall_interceptor_policy_update(policy: &BackEndSyscallInterceptorConfi
 
     debug!("syscall_interceptor_policy_update policy {:?}", policy);
     syscall_info_keeper.policy.enable = policy.enable;
+    syscall_info_keeper.policy.mode = policy.mode.clone();
     Ok(())
 }
 
 
-pub fn syscall_interceptor_init(policy: BackEndSyscallInterceptorConfig, application_pid: u64) -> Result<()> {
+pub fn syscall_interceptor_init(policy: BackEndSyscallInterceptorConfig, application_pid: i32) -> Result<()> {
 
     let mut syscall_info_keeper = SYSCALLINTERCEPTOR.write();
 
-    debug!("syscall_interceptor_init policy {:?}", policy);
+    debug!("syscall_interceptor_init policy {:?}, task id {:?}", policy, application_pid);
     syscall_info_keeper.policy = policy;
     syscall_info_keeper.application_pid = application_pid;
     syscall_info_keeper.is_init = true;
@@ -42,10 +43,9 @@ pub fn syscall_interceptor_init(policy: BackEndSyscallInterceptorConfig, applica
 
 
 // TODO: ENABLE CONTEXT BASED SYSTEM CALL INTERCEPTOR
-pub fn is_guest_syscall_allowed(current_pid: u64, syscall_id: u64) -> bool {
+pub fn is_guest_syscall_allowed(current_pid: i32, syscall_id: u64) -> bool {
     let syscall_info_keeper = SYSCALLINTERCEPTOR.read();
     if !syscall_info_keeper.is_init {
-
         info!("syscall_info_keeper is not init");
         return true;
     }
@@ -55,9 +55,25 @@ pub fn is_guest_syscall_allowed(current_pid: u64, syscall_id: u64) -> bool {
         return true;
     }
 
-    let res = syscall_info_keeper.policy.syscalls.contains(&syscall_id);
-    debug!("is_guest_syscall_allowed syscall id {:?}, is allowed {:?}", syscall_id, res);
-    return res;
+    match syscall_info_keeper.policy.mode {
+        SystemCallInterceptorMode::ContextBased => {
+            if current_pid != syscall_info_keeper.application_pid {
+                debug!("is_guest_syscall_allowed syscall id {:?}, ContextBased, not app process task id {:?}", syscall_id, current_pid);
+                return true;
+            }
+
+            let res = syscall_info_keeper.policy.syscalls.contains(&syscall_id);
+            debug!("is_guest_syscall_allowed syscall id {:?}, is allowed {:?}, ContextBased", syscall_id, res);
+            return res;
+        },
+        SystemCallInterceptorMode::Global => {
+
+            let res = syscall_info_keeper.policy.syscalls.contains(&syscall_id);
+            debug!("is_guest_syscall_allowed syscall id {:?}, is allowed {:?} Global", syscall_id, res);
+            return res;
+
+        }
+    }
 }
 
 

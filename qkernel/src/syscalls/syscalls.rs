@@ -78,7 +78,7 @@ pub fn SysCall(task: &mut Task, nr: u64, args: &SyscallArguments) -> TaskRunStat
 
 
 
-    if !crate::shield::guest_syscall_interceptor::is_guest_syscall_allowed(task.taskId, nr) {
+    if !crate::shield::guest_syscall_interceptor::is_guest_syscall_allowed(task.Thread().ThreadGroup().ID(), nr) {
         // syscall is not allowed   
         task.haveSyscallReturn = true;
         task.SetReturn(-SysErr::EPERM as u64);  // EPERM Operation not permitted

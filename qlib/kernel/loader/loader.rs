@@ -333,7 +333,7 @@ pub fn Load(
         app_loaded = app_info_keeper.is_application_loaded().unwrap();
     }
 
-    info!("Load app_name {:?}, name {:?}, app_loaded {:?}", app_name, name, app_loaded);
+    info!("Load app_name {:?}, name {:?}, app_loaded {:?}, process id {:?}", app_name, name, app_loaded, task.Thread().ThreadGroup().ID());
       
     // trigger remote attestation and secret provisioning if the kernel is going to launch application binary
     if app_name.eq(name) && !app_loaded {
@@ -354,7 +354,7 @@ pub fn Load(
 
         // secret injection
 
-        guest_syscall_interceptor::syscall_interceptor_init(shield_policy.syscall_interceptor_config.clone(), task.taskId).unwrap();
+        guest_syscall_interceptor::syscall_interceptor_init(shield_policy.syscall_interceptor_config.clone(),  task.Thread().ThreadGroup().ID()).unwrap();
 
         // file based secret injection
         {

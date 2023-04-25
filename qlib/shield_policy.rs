@@ -127,13 +127,22 @@ pub enum ExecRequestType {
 pub enum DefaultAction {
 #[warn(non_camel_case_types)]
     #[default]  
-    SCMP_ACT_ERRNO,
+    ScmpActErrno,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+pub enum SystemCallInterceptorMode {
+#[warn(non_camel_case_types)]
+    #[default]  
+    Global,  // the interceptor works globaly
+    ContextBased, // the interceptor only works for application process
 }
 
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default, PartialEq)]
 pub struct BackEndSyscallInterceptorConfig {
     pub enable: bool,
+    pub mode: SystemCallInterceptorMode,
     pub default_action: DefaultAction,
     pub syscalls: Vec<u64>
 }

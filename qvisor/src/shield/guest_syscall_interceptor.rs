@@ -13,12 +13,12 @@ lazy_static! {
 #[derive(Debug, Default)]
 pub struct GuestSyscallInterceptor {
     policy: BackEndSyscallInterceptorConfig,
-    application_pid: u64,
+    application_pid: i32,
     is_init: bool,
 }
 
 
-pub fn syscall_interceptor_init(policy: BackEndSyscallInterceptorConfig, application_pid: u64) -> Result<()> {
+pub fn syscall_interceptor_init(policy: BackEndSyscallInterceptorConfig, application_pid: i32) -> Result<()> {
 
     let mut syscall_info_keeper = SYSCALLINTERCEPTOR.write();
 
@@ -32,7 +32,7 @@ pub fn syscall_interceptor_init(policy: BackEndSyscallInterceptorConfig, applica
 
 
 // TODO: ENABLE CONTEXT BASED SYSTEM CALL INTERCEPTOR
-pub fn is_guest_syscall_allowed(current_pid: u64, syscall_id: u64) -> bool {
+pub fn is_guest_syscall_allowed(_current_pid: i32, syscall_id: u64) -> bool {
 
 
     let syscall_info_keeper = SYSCALLINTERCEPTOR.read();

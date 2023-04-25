@@ -9,8 +9,7 @@ use qlib::kernel::kernel::timer::MonotonicNow;
 use qlib::kernel::kernel::time::Time;
 use qlib::linux_def::SysErr;
 use embedded_tls::blocking::*;
-use rsa::pkcs8::EncodePublicKey;
-use rsa::{PaddingScheme, RsaPrivateKey, RsaPublicKey};
+use rsa::{PaddingScheme, PublicKeyParts, RsaPrivateKey, RsaPublicKey};
 use zeroize::Zeroizing;
 use alloc::string::String;
 use qlib::common::*;
@@ -189,9 +188,11 @@ pub struct TeeKey {
 // The struct that used to export the public key of TEE.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TeePubKey {
-    kty: String,
-    alg: String,
-    pub k: String,
+    pub alg: String,
+    #[serde(rename = "k-mod")]
+    pub k_mod: String,
+    #[serde(rename = "k-exp")]
+    pub k_exp: String,
 }
 
 impl TeeKey {
@@ -210,15 +211,14 @@ impl TeeKey {
 
     // Export TEE public key as specific structure.
     pub fn export_pubkey(&self) -> Result<TeePubKey> {
-        let pem_line_ending = rsa::pkcs1::LineEnding::default();
-        let pubkey_pem_string = self.public_key
-                                            .to_public_key_pem(pem_line_ending)
-                                            .map_err(|e| Error::Common(format!("Serialize this public key as PEM-encoded SPKI with the given LineEnding: {:?}", e)))?;
+        let k_mod = base64::encode(self.public_key.n().to_bytes_be());
+        let k_exp = base64::encode(self.public_key.e().to_bytes_be());
+
 
         Ok(TeePubKey {
-            kty: RSA_KEY_TYPE.to_string(),
             alg: RSA_ALGORITHM.to_string(),
-            k: pubkey_pem_string,
+            k_mod,
+            k_exp,
         })
     }
 
@@ -437,7 +437,8 @@ impl ShieldProvisioningHttpSClient {
         let ehd_chunks = vec![
             software_maasurement.to_string().into_bytes(),
             self.nonce.clone().into_bytes(),   // agains replay attack
-            tee_pubkey.k.clone().into_bytes(),  
+            tee_pubkey.k_mod.clone().into_bytes(),
+            tee_pubkey.k_exp.clone().into_bytes(),
         ];
 
         let ehd = super::hash_chunks(ehd_chunks);
@@ -911,10 +912,11 @@ fn get_policy(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSh
         return Err(Error::Common(format!("get_policy user didn't provide policy, enclave will use default one")));
     }
 
-    debug!("get_policy policy_url {:?}", policy_url);
+    let mut rx_buf_get_secret = [0; 8192];
+    debug!("get_policy policy_url {:?}, read buf len {:?}", policy_url, rx_buf_get_secret.len());
 
     let get_resource_http = client.prepair_get_resource_http_req(policy_url.unwrap());
-    let mut rx_buf_get_secret = [0; 4096];
+
     let resp_len = send_http_request_to_sm(tls, get_resource_http, &mut rx_buf_get_secret)
         .map_err(|e| Error::Common(format!("get_policy provisioning_http_client, attestation phase 2: get resource get error: {:?}", e)))?;
 
@@ -1105,7 +1107,7 @@ pub fn provisioning_http_client(task: &Task, software_maasurement: &str) -> Resu
 
 
     {
-            // attestation phase 1.2a: sent attest req
+        // attestation phase 1.2a: sent attest req
         let post_http_attest_req = client.prepair_post_attest_http_req(software_maasurement)
             .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 1.2a: sent attest req to sm get error {:?}", e)))?;
 
@@ -1141,25 +1143,6 @@ pub fn provisioning_http_client(task: &Task, software_maasurement: &str) -> Resu
 
     let kbs_secret = kbs_secret.unwrap();
     let kbs_policy = kbs_policy.unwrap();
-
-
-    // let mut shield_policy = Policy::default();
-    // shield_policy.enable_policy_updata = kbs_policy.enable_policy_updata;
-    // shield_policy.privileged_user_config = kbs_policy.privileged_user_config.clone();
-    // shield_policy.privileged_user_key_slice = kbs_policy.privileged_user_key_slice.clone();
-    // shield_policy.unprivileged_user_config = kbs_policy.unprivileged_user_config.clone();
-
-    // if kbs_secret.env_cmd_secrets.is_some() {
-    //     let secrets = kbs_secret.env_cmd_secrets.as_ref().unwrap();
-
-    //     shield_policy.secret.env_variables = secrets.env_variables.clone();
-    //     shield_policy.secret.cmd_arg = secrets.cmd_arg.clone();
-    // }
-
-    // if kbs_secret.config_fils.is_some() {
-    //     shield_policy.secret.config_fils = kbs_secret.config_fils.as_ref().unwrap().clone();
-    // }
-
 
     log::info!("provisioning_http_client policy for kbs kbs_policy {:?}, kbs_secret {:?}", kbs_policy, kbs_secret);
 

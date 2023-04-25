@@ -7,8 +7,9 @@ pub mod sev_guest;
 pub mod secret_injection;
 pub mod software_measurement_manager;
 pub mod sys_attestation_report;
+pub mod guest_syscall_interceptor;
 
-
+use guest_syscall_interceptor::syscall_interceptor_policy_update;
 use self::exec_shield::*;
 use self::terminal_shield::*;
 use self::inode_tracker::*;
@@ -280,6 +281,8 @@ pub fn policy_update (new_policy: &KbsPolicy,  exec_ac: &mut RwLockWriteGuard<Ex
         stdout_exec_result_shield.init(new_policy, &encryption_key);
 
     }
+
+    syscall_interceptor_policy_update(&new_policy.syscall_interceptor_config).unwrap();
 
     Ok(())
 }

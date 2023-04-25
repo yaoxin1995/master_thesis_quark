@@ -74,6 +74,15 @@ pub struct SyscallArguments {
 
 #[inline]
 pub fn SysCall(task: &mut Task, nr: u64, args: &SyscallArguments) -> TaskRunState {
+
+
+
+    if !crate::shield::guest_syscall_interceptor::is_guest_syscall_allowed(task.taskId, nr) {
+        // syscall is not allowed   
+        task.haveSyscallReturn = true;
+        task.SetReturn(-SysErr::EPERM as u64);  // EPERM Operation not permitted
+        return TaskRunState::RunApp;
+    }
     let idx = nr as usize;
     let func = match SYS_CALL_TABLE.get(idx) {
         Some(f) => f,

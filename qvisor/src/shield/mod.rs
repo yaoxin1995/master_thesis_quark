@@ -6,6 +6,7 @@ pub mod inode_tracker;
 pub mod sev_guest;
 pub mod secret_injection;
 pub mod software_measurement_manager;
+pub mod guest_syscall_interceptor;
 
 use spin::rwlock::RwLock;
 use self::exec_shield::*;

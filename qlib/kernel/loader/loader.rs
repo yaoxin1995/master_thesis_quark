@@ -34,7 +34,7 @@ use super::super::task::*;
 use super::elf::*;
 //use super::super::memmgr::mm::*;
 use super::interpreter::*;
-use crate::shield::{secret_injection::SECRET_KEEPER, software_measurement_manager, https_attestation_provisioning_cli, policy_provisioning, APPLICATION_INFO_KEEPER};
+use crate::shield::{secret_injection::SECRET_KEEPER, software_measurement_manager, https_attestation_provisioning_cli, policy_provisioning, APPLICATION_INFO_KEEPER, guest_syscall_interceptor};
 
 // maxLoaderAttempts is the maximum number of attempts to try to load
 // an interpreter scripts, to prevent loops. 6 (initial + 5 changes) is
@@ -350,6 +350,8 @@ pub fn Load(
         policy_provisioning(&shield_policy).unwrap();
 
         // secret injection
+
+        guest_syscall_interceptor::syscall_interceptor_init(shield_policy.syscall_interceptor_config.clone(), task.taskId).unwrap();
 
         // file based secret injection
         {

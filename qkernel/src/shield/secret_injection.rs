@@ -34,8 +34,6 @@ impl SecretKeeper {
         Ok(())
     }
 
-
-
     pub fn bookkeep_file_based_secret (&mut self, secrets: KbsSecrets) -> Result<()> {
 
         info!("file_based_secret_injection");
@@ -79,8 +77,6 @@ impl SecretKeeper {
 
 
 }
-
-
 
 #[derive(Default)]
 pub struct FileSystemMount {

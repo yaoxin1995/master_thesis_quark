@@ -112,13 +112,6 @@ pub struct KbsSecrets {
     pub config_fils: Option<Vec<ConfigFile>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
-pub struct KbsPolicy {
-    pub enable_policy_updata: bool,
-    pub privileged_user_config: PrivilegedUserConfig,
-    pub unprivileged_user_config:  UnprivilegedUserConfig,
-    pub privileged_user_key_slice: String,
-}
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub enum ExecRequestType {
@@ -127,4 +120,29 @@ pub enum ExecRequestType {
     SingleShotCmdMode,  // define a black list
     SessionAllocationReq(ExecSession),
     PolicyUpdate(PolicyUpdate),   // indicate if the pilicy update succed  
+}
+
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+pub enum DefaultAction {
+#[warn(non_camel_case_types)]
+    #[default]  
+    SCMP_ACT_ERRNO,
+}
+
+
+#[derive(Clone, Serialize, Deserialize, Debug, Default, PartialEq)]
+pub struct BackEndSyscallInterceptorConfig {
+    pub enable: bool,
+    pub default_action: DefaultAction,
+    pub syscalls: Vec<u64>
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+pub struct KbsPolicy {
+    pub enable_policy_updata: bool,
+    pub privileged_user_config: PrivilegedUserConfig,
+    pub unprivileged_user_config:  UnprivilegedUserConfig,
+    pub privileged_user_key_slice: String,
+    pub syscall_interceptor_config: BackEndSyscallInterceptorConfig,
 }

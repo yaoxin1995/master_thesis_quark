@@ -33,8 +33,6 @@ pub struct TtyArgs {
     pub stdio_type : StdioType
 }
 
-
-
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub enum TrackInodeType {
     Stdin(StdioArgs),
@@ -44,7 +42,6 @@ pub enum TrackInodeType {
     #[default]
     Normal,
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub enum Role {
@@ -163,8 +160,6 @@ pub struct QlogPolicy {
     pub allowed_max_log_level: QkernelDebugLevel
 }
 
-
-
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct KbsPolicy {
     pub enable_policy_updata: bool,
@@ -173,5 +168,4 @@ pub struct KbsPolicy {
     pub privileged_user_key_slice: String,
     pub qkernel_log_config: QlogPolicy,
     pub syscall_interceptor_config: BackEndSyscallInterceptorConfig,
-
 }

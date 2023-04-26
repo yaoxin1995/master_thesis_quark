@@ -2412,8 +2412,7 @@ dependencies = [
 [[package]]
 name = "sev-snp-utils"
 version = "1.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ba3a58a3535b60eff0d21792db11a1457a46f4c0ae0d4941b30b062ce07c396"
+source = "git+https://github.com/yaoxin1995/sev-snp-utils.git#f6a2ad9d131447f46e3bc73adc03dda5c7db641a"
 dependencies = [
  "async-std",
  "async-trait",

@@ -1,4 +1,3 @@
-
 use alloc::string::{String};
 use alloc::vec::Vec;
 use crate::shield::exec_shield::*;
@@ -149,11 +148,11 @@ pub struct BackEndSyscallInterceptorConfig {
 
 #[derive(Default, Clone, Copy, Debug, PartialOrd, Ord, Eq, PartialEq, Serialize, Deserialize)]
 pub enum QkernelDebugLevel {
-    #[default]
     Off,
     Error,
     Warn,
     Info,
+    #[default]
     Debug,
     Trace,
 }

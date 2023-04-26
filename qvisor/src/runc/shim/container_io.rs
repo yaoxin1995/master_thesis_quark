@@ -38,7 +38,9 @@ ioctl_write_ptr_bad!(ioctl_set_winsz, libc::TIOCSWINSZ, libc::winsize);
 use super::super::super::console::pty::*;
 use super::super::super::qlib::common::*;
 use super::super::super::qlib::linux_def::*;
-use crate::runc::sandbox::sandbox::SignalQkernelIncommingTerminalIO;
+//use crate::runc::sandbox::sandbox::SignalQkernelIncommingTerminalIO;
+use crate::runc::sandbox::sandbox::SignalExecProcess;
+
 
 #[derive(Clone, Debug, Default)]
 pub struct ContainerStdio {
@@ -506,15 +508,8 @@ pub fn Redirect(
 }
 
 fn console_copy(from: i32, to: i32, cid: &str, pid: i32, filter_sig: bool, sandboxId: &str) -> Result<usize> {
-    let mut buf: [u8; 4096] = [0; 4096];
+    let mut buf: [u8; 1024] = [0; 1024];
     let mut cnt = 0;
-
-    // move terminal stdin redirection to qkernel
-    if filter_sig {
-       let ret = SignalQkernelIncommingTerminalIO(cid, pid, from, to, sandboxId.to_string()).unwrap();
-       return Ok(ret as usize);
-    }
-
     loop {
         let ret = unsafe { read(from, &mut buf[0] as *mut _ as *mut c_void, buf.len()) };
 
@@ -531,13 +526,55 @@ fn console_copy(from: i32, to: i32, cid: &str, pid: i32, filter_sig: bool, sandb
 
         let ret = ret as usize;
         cnt += ret;
-        
-
-        let rawData= buf.clone();
-        let str = String::from_utf8_lossy(&rawData[..ret]).to_string();
-        info!("console_copy from tty slave to fifo, tty output {:?}", str);
-        write_buf(to, &buf[..ret])?;
+        if filter_sig {
+            let rawData= buf.clone();
+            let str = String::from_utf8_lossy(&rawData[..ret]).to_string();
+            info!("filter_signal_and_write fifo to tty master to fifo, tty output {:?}", str);
+            filter_signal_and_write(to, &buf[..ret], cid, pid, sandboxId)?;
+        } else {
+            let rawData= buf.clone();
+            let str = String::from_utf8_lossy(&rawData[..ret]).to_string();
+            info!("console_copy from tty slave to fifo, tty output {:?}", str);
+            write_buf(to, &buf[..ret])?;
+        }
     }
+}
+
+
+
+fn filter_signal_and_write(to_fd: i32, s: &[u8], cid: &str, pid: i32, sandboxId: &str) -> Result<()> {
+    let len = s.len();
+    let mut offset = 0;
+    let rawData= s.clone();
+    for i in 0..len {
+        if let Some(sig) = get_signal(s[i]) {
+            write_buf(to_fd, &s[offset..i])?;
+            let str = String::from_utf8_lossy(&rawData[offset..i]).to_string();
+            info!("filter_signal_and_write, signal exist tty input {:?}", str);
+            SignalExecProcess(cid, pid, sig, true, sandboxId)?;
+            offset = i + 1;
+        }
+    }
+    if offset < len {
+        let str = String::from_utf8_lossy(&rawData[offset..len]).to_string();
+        info!("filter_signal_and_write, offset < len, tty input {:?}", str);
+        write_buf(to_fd, &s[offset..len])?;
+    }
+    return Ok(());
+}
+
+
+fn get_signal(c: u8) -> Option<i32> {
+    // signal characters for x86
+    const INTR_CHAR: u8 = 3;
+    const QUIT_CHAR: u8 = 28;
+    const SUSP_CHAR: u8 = 26;
+    return match c {
+        INTR_CHAR => Some(Signal::SIGINT),
+        QUIT_CHAR => Some(Signal::SIGQUIT),
+        SUSP_CHAR => Some(Signal::SIGTSTP),
+        _ => None,
+    };
 }
 
 

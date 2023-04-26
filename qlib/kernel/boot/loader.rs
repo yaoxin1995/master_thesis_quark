@@ -44,7 +44,7 @@ use super::super::SignalDef::*;
 use super::super::SHARESPACE;
 use super::fs::*;
 use crate::qlib::shield_policy::*;
-use crate::shield::{exec_shield::*, secret_injection, software_measurement_manager};
+use crate::shield::{exec_shield::*, secret_injection, software_measurement_manager, APPLICATION_INFO_KEEPER};
 use crate::qlib::kernel::boot::config;
 
 impl Process {
@@ -155,27 +155,16 @@ impl Loader {
             }
         };
         
-        let mut exec_auth_ac = EXEC_AUTH_AC.write();
-        let exec_args = match exec_auth_ac.authenticated_reqs.remove(&exec_id) {
-            Some(authenticated_req) => authenticated_req,
-            None => {
-                return Err(Error::Common(format!("the req is not valid req")));
-            }
-        };
-
-        // match exec_args.exec_type {
-        //     ExecRequestType::SessionAllocationReq(session) => {
-        //         exec_auth_ac.session_request_handler(&process.Stdiofds, resp_fd, process.ID.clone(), session, exec_id.clone());
-
-        //         // should never reach here since the task exited
-        //         return Err(Error::Common(format!("session_request_handler returned")));
-                
-        //     },
-        //     _ => {
-
-        //     }
-            
-        // }
+        let exec_args;
+        {
+            let mut exec_auth_ac = EXEC_AUTH_AC.write();
+            exec_args = match exec_auth_ac.authenticated_reqs.remove(&exec_id) {
+                Some(authenticated_req) => authenticated_req,
+                None => {
+                    return Err(Error::Common(format!("the req is not valid req")));
+                }
+            };
+        }
 
         let mut process = process.clone();
         process.Args = exec_args.args.clone();
@@ -236,6 +225,23 @@ impl Loader {
                         exec_id: Some(exec_id.clone()),
                         exec_user_type: Some(exec_args.user_type.clone()),
                         stdio_type: StdioType::SessionAllocationStdio(s.clone())
+                    }
+                },
+                ExecRequestType::PolicyUpdate(ref arg) => {
+
+                    let exeit = EXEC_AUTH_AC.read().auth_session.contains_key(&arg.session_id);
+
+                    info!("exec start req, auth_session.contains_key(&arg.session_id); {:?}", exeit);
+
+                    let p = PolicyUpdateResult {
+                        result: arg.is_updated,
+                        session_id: arg.session_id
+                    };
+
+                    StdioArgs {
+                        exec_id: Some(exec_id.clone()),
+                        exec_user_type: Some(exec_args.user_type.clone()),
+                        stdio_type: StdioType::PolicyUpdate(p)
                     }
                 },
                 _ => {
@@ -393,6 +399,11 @@ impl Loader {
                 info!("StartSubContainer measure_process_spec(&processSpec) got error {:?}", res);
                 return Err(res.err().unwrap());
             }
+        }
+
+        {
+            let mut application_info_keeper = APPLICATION_INFO_KEEPER.write();
+            application_info_keeper.init(&processSpec.Envs, processSpec.ID.clone()).unwrap();
         }
 
         let task = Task::Current();

@@ -34,8 +34,7 @@ use super::super::task::*;
 use super::elf::*;
 //use super::super::memmgr::mm::*;
 use super::interpreter::*;
-use crate::shield::{secret_injection::SECRET_KEEPER, software_measurement_manager, https_attestation_provisioning_cli};
-use super::super::SHARESPACE;
+use crate::shield::{secret_injection::SECRET_KEEPER, software_measurement_manager, https_attestation_provisioning_cli, policy_provisioning, APPLICATION_INFO_KEEPER, guest_syscall_interceptor};
 
 // maxLoaderAttempts is the maximum number of attempts to try to load
 // an interpreter scripts, to prevent loops. 6 (initial + 5 changes) is
@@ -302,6 +301,8 @@ pub fn Load(
 
     let mut stack = Stack::New(stackRange.End());
 
+    let software_measurement;
+
     {
         let mut measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
         while !measurement_manager.is_some() {
@@ -316,61 +317,81 @@ pub fn Load(
             return Err(res.err().unwrap());
         }
 
+        software_measurement= measurement_manager.get_measurement().unwrap();
+    }
+
+    let app_name;
+    let app_loaded;
+
+    {
+        let app_info_keeper = APPLICATION_INFO_KEEPER.read();
+
+        app_name = app_info_keeper.get_application_name().unwrap().to_string();
+        app_loaded = app_info_keeper.is_application_loaded().unwrap();
+    }
+
+    info!("Load app_name {:?}, name {:?}, app_loaded {:?}, process id {:?}", app_name, name, app_loaded, task.Thread().ThreadGroup().ID());
       
+    // trigger remote attestation and secret provisioning if the kernel is going to launch application binary
+    if app_name.eq(name) && !app_loaded {
 
-        let app_name = measurement_manager.get_application_name().unwrap();
-        let app_loaded = measurement_manager.is_application_loaded().unwrap();
 
-        // trigger remote attestation and secret provisioning if the kernel is going to launch application binary
-        if app_name.eq(name) && !app_loaded {
+        debug!("Load attestation begin, the software measurement is {:?}", software_measurement);
 
-            let software_measurement = measurement_manager.get_measurement().unwrap();
-            info!("Load attestation begin, the software measurement is {:?}", software_measurement);
+        // attestation, panic if attestation failed
+        let res = https_attestation_provisioning_cli::provisioning_http_client(task, &software_measurement);
+        if res.is_err() {
+            info!("https_attestation_provisioning_cli::provisioning_http_client(task) got error {:?}", res);
+            return Err(res.err().unwrap());
+        }
 
-            // attestation, panic if attestation failed
-            // let policy = https_attestation_provisioning_cli::provisioning_http_client(task, software_measurement);
-            // if res.is_err() {
-            //     info!("https_attestation_provisioning_cli::provisioning_http_client(task) got error {:?}", res);
-            //     return Err(res.err().unwrap());
-            // }
+        let (shield_policy, secret) = res.unwrap();
+        // updata the policy
+        policy_provisioning(&shield_policy).unwrap();
 
-            // let policy = policy.unwrap();
-            // updata the policy
+        // secret injection
 
-            // secret injection
+        guest_syscall_interceptor::syscall_interceptor_init(shield_policy.syscall_interceptor_config.clone(),  task.Thread().ThreadGroup().ID()).unwrap();
 
-            // file based secret injection
-            let policy = SHARESPACE.k8s_policy.read();
-            {
-                let mut secret_injector =  SECRET_KEEPER.write();
-    
-                let res = secret_injector.bookkeep_file_based_secret(policy.secret.clone());
-                if res.is_err() {
-                    info!("Load: failed to call file_based_secret_injection");
-                }
+        // file based secret injection
+        {
+            let mut secret_injector =  SECRET_KEEPER.write();
+
+            let res = secret_injector.bookkeep_file_based_secret(secret.clone());
+            if res.is_err() {
+                info!("Load: failed to call file_based_secret_injection");
             }
-    
-            {
-                let secret_injector = SECRET_KEEPER.read();
-                let res = secret_injector.inject_file_based_secret_to_secret_file_system(task);
-    
-                if res.is_err() {
-                    info!("Load: failed to set up file system for secrets on guest memory");
-                }
-            }
+        }
 
-            // env based secret injection
-            let mut env_secrets = policy.secret.env_variables.clone();
+        {
+            let secret_injector = SECRET_KEEPER.read();
+            let res = secret_injector.inject_file_based_secret_to_secret_file_system(task);
+
+            if res.is_err() {
+                info!("Load: failed to set up file system for secrets on guest memory");
+            }
+        }
+
+        // env based secret injection
+        if secret.env_cmd_secrets.is_some() {
+
+            let cmd_envs = secret.env_cmd_secrets.as_ref().unwrap();
+            let mut env_secrets = cmd_envs.env_variables.clone();
             envv.append(&mut env_secrets);
-
+    
             // app args based secret injection
-            let mut arg_secrets = policy.secret.cmd_arg.clone();
+            let mut arg_secrets = cmd_envs.cmd_arg.clone();
             argv.append(&mut arg_secrets);
 
-            measurement_manager.set_application_loaded();
-
-            info!("secret injection finished, envv {:?}, args {:?}", envv, argv);
         }
+
+
+        {
+            let mut  app_info_keeper = APPLICATION_INFO_KEEPER.write();
+            app_info_keeper.set_application_loaded().unwrap();
+        }
+
+        debug!("secret injection finished, envv {:?}, args {:?}", envv, argv);
     }
     
     let usersp = SetupUserStack(

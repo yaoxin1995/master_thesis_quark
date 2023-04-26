@@ -6,9 +6,12 @@ use qlib::addr::Addr;
 use crate::qlib::kernel::task::Task;
 use crate::qlib::loader::Process;
 use qlib::auxv::AuxEntry;
-
+use qlib::path::*;
+use qlib::linux_def::*;
+use fs::file::File;
 
 const APP_NMAE: &str = "APPLICATION_NAME"; 
+const SHARED_LIB_PATTERN: &str = ".so"; 
 
 lazy_static! {
     pub static ref SOFTMEASUREMENTMANAGER:  RwLock<SoftwareMeasurementManager> = RwLock::new(SoftwareMeasurementManager::default());
@@ -54,6 +57,17 @@ fn get_application_name(envs : Vec<String>) -> Option<String>{
     None
 }
 
+pub fn is_shared_lib(file_name: &str) -> Result<bool> {
+
+    let base_name = Base(&file_name).to_string();
+
+    let is_shared_lib = base_name.contains(SHARED_LIB_PATTERN);
+
+    info!("is_shared_lib file_name {:?}, is_shared_lib {:?}", file_name, is_shared_lib);
+
+    Ok(is_shared_lib)
+}
+
 impl SoftwareMeasurementManager {
 
     fn updata_measurement(&mut self, new_data: Vec<u8>) -> Result<()> {
@@ -68,19 +82,6 @@ impl SoftwareMeasurementManager {
         self.measurement = hash_res;
 
         Ok(())
-    }
-
-    pub fn is_application_loaded (&self) -> Result<bool> {
-        return Ok(self.is_app_loaded);
-    }
-
-    pub fn set_application_loaded (&mut self) -> Result<()> {
-        self.is_app_loaded = true;
-        return Ok(());
-    }
-
-    pub fn get_application_name (&self) -> Result<&str> {
-        return Ok(&self.containerlized_app_name);
     }
 
     pub fn measure_process_spec(&mut self, proc_spec: &Process) -> Result<()> {
@@ -170,8 +171,40 @@ impl SoftwareMeasurementManager {
         Ok(())
     }
 
-    pub fn measure_shared_lib(&mut self) -> Result<()> {
+    pub fn measure_shared_lib(&mut self, start_addr: u64, file: &File, task: &Task, fixed: bool, mmmap_len: u64) -> Result<()> {
 
+        let uattr = file.UnstableAttr(task)?;
+        let real_mmap_size = if uattr.Size as u64 > mmmap_len {
+            mmmap_len
+        } else {
+            uattr.Size as u64
+        };
+
+        // let length = match Addr(shared_lib_size).RoundDown() {
+        //     Err(_) => return Err(Error::SysError(SysErr::ENOMEM)),
+        //     Ok(l) => l.0,
+        // };
+        debug!("measure_shared_lib, addr {:x}, shared_lib_size {:x}, fixed {:?}, mmmap_len {:x}", start_addr, real_mmap_size, fixed, mmmap_len);
+        
+        let data: Result<Vec<u8>>;
+        if fixed {
+            let length = match Addr(mmmap_len).RoundDown() {
+                Err(_) => return Err(Error::SysError(SysErr::ENOMEM)),
+                Ok(l) => l.0,
+            };
+
+            data = task.CopyInVec(start_addr, length as usize);
+        } else {
+            data = task.CopyInVec(start_addr, real_mmap_size as usize);
+        }
+
+        if data.is_err() {
+            info!("measure_shared_lib After task.CopyInVec got error {:?}", data);
+            return Err(data.err().unwrap());
+        }
+
+        let loadable = data.unwrap();
+        self.updata_measurement(loadable).unwrap();
         Ok(())
     }
 

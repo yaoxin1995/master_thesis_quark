@@ -54,7 +54,7 @@ pub const ENABLE_RINGBUF: bool = true;
 
 impl TerminalShield {
 
-    pub fn init(&mut self, _policy: &Policy, key: &GenericArray<u8, U32>) -> () {
+    pub fn init(&mut self, _policy: &KbsPolicy, key: &GenericArray<u8, U32>) -> () {
     
        // self.key = policy.unwrap().secret.file_encryption_key.as_bytes().to_vec();
         self.key = key.clone();

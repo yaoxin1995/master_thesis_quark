@@ -19,7 +19,6 @@ impl InodeTracker {
         self.inode_track= BTreeMap::new();
     }
 
-    
     pub fn addInoteToTrack(&mut self, key: u64, value: TrackInodeType) -> (){
 
         info!("add inode id {:?}, type:{:?}", key, value);
@@ -34,17 +33,13 @@ impl InodeTracker {
     }
 
     pub fn isInodeExist(&self, key: &u64) -> bool {
-        info!("isInodeExist, key{:?} , exist{:?}", key ,self.inode_track.contains_key(key));
+        debug!("isInodeExist, key{:?} , exist{:?}", key ,self.inode_track.contains_key(key));
         self.inode_track.contains_key(key)
     }
-
 
     pub fn getInodeType (&self, key: &u64) -> TrackInodeType{
         
         let res =  self.inode_track.get(key).unwrap().clone();
         res
     }
-
-
-    
 }

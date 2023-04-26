@@ -1,6 +1,6 @@
 use spin::rwlock::RwLock;
 use crate::qlib::kernel::boot::{oci, config};
-use crate::qlib::shield_policy::Secret;
+use crate::qlib::shield_policy::{KbsSecrets};
 use alloc::vec::Vec;
 use alloc::string::ToString;
 use crate::qlib::kernel::task::Task;
@@ -32,7 +32,7 @@ impl SecretKeeper {
 
 
 
-    pub fn bookkeep_file_based_secret (&mut self, _secrets: Secret) -> Result<()> {
+    pub fn bookkeep_file_based_secret (&mut self, _secrets: KbsSecrets) -> Result<()> {
 
         info!("file_based_secret_injection");
 

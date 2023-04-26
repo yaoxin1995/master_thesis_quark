@@ -237,7 +237,7 @@ pub fn openAt(task: &Task, dirFd: i32, addr: u64, flags: u32) -> Result<i32> {
 
     let (path, dirPath) = copyInPath(task, addr, false)?;
 
-    info!(
+    debug!(
         "openat path is {}, the perm is {:?}, current is {}",
         &path,
         &PermMask::FromFlags(flags),

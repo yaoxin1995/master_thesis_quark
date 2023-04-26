@@ -1,7 +1,7 @@
 
 use crate::qlib::common::*;
 use crate::qlib::kernel::task::Task;
-
+use crate::qlib::shield_policy::*;
 
 
 /// The supported TEE types:
@@ -23,6 +23,6 @@ pub enum Tee {
 
 
 
-pub fn provisioning_http_client(_task: &Task) -> Result<usize> {
-    Ok(0)
+pub fn provisioning_http_client(_task: &Task, _software_maasurement: &str) -> Result<(KbsPolicy, KbsSecrets)> {
+    Err(Error::NotSupport)
 }

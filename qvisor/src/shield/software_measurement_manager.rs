@@ -70,19 +70,6 @@ impl SoftwareMeasurementManager {
         Err(Error::NotSupport)
     }
 
-    
-    pub fn is_application_loaded (&self) -> Result<bool> {
-        Err(Error::NotSupport)
-    }
-
-    pub fn set_application_loaded (&self) -> Result<()> {
-        Err(Error::NotSupport)
-    }
-
-    pub fn get_application_name (&self) -> Result<&str> {
-        Err(Error::NotSupport)
-    }
-
 }
 
 

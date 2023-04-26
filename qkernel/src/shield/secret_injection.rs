@@ -1,6 +1,6 @@
 use spin::rwlock::RwLock;
 use crate::qlib::kernel::boot::{oci, config};
-use crate::qlib::shield_policy::Secret;
+use crate::qlib::shield_policy::{Secret, KbsSecrets};
 use alloc::vec::Vec;
 use alloc::string::ToString;
 use crate::qlib::kernel::task::Task;
@@ -34,18 +34,20 @@ impl SecretKeeper {
         Ok(())
     }
 
-
-
-    pub fn bookkeep_file_based_secret (&mut self, secrets: Secret) -> Result<()> {
+    pub fn bookkeep_file_based_secret (&mut self, secrets: KbsSecrets) -> Result<()> {
 
         info!("file_based_secret_injection");
 
+        if secrets.config_fils.is_none() {
+            return Ok(());
+        }
 
-        for file_based_secret in secrets.config_fils {
+        let config_file = secrets.config_fils.unwrap();
+
+
+        for file_based_secret in config_file {
 
             let content = file_based_secret.base64_file_content;
-
-
             let bytes = base64::decode(content)
             .map_err(|e| Error::Common(format!("file_based_secret_injection base64::decode failed to decoded file based secret {:?}", e)))?;
 
@@ -75,8 +77,6 @@ impl SecretKeeper {
 
 
 }
-
-
 
 #[derive(Default)]
 pub struct FileSystemMount {

@@ -36,8 +36,7 @@ use super::process::*;
 
 use super::super::super::super::kernel_def::*;
 
-use crate::shield::{terminal_shield::*, exec_shield::*, https_attestation_provisioning_cli::provisioning_http_client};
-use crate::shield::sev_guest::*;
+use crate::shield::{terminal_shield::*, exec_shield::*};
 
 
 
@@ -153,8 +152,6 @@ pub fn SignalHandler(_: *const u8) {
 
 pub fn ControlMsgHandler(fd: *const u8) {
     let fd = fd as i32;
-    
-    info!("policy in qkernel: {:?}", SHARESPACE.k8s_policy.read());
     let task = Task::Current();
     let mut msg = ControlMsg::default();
     Kernel::HostSpace::ReadControlMsg(fd, &mut msg as * mut _ as u64);
@@ -237,38 +234,9 @@ pub fn ControlMsgHandler(fd: *const u8) {
 
                 // policy checker specified
         Payload::ExecAthenAcCheck(AuthAcCheckArgs) => {
-            let is_allowd;
-            {
-                is_allowd = EXEC_AUTH_AC.write().exec_req_authentication(AuthAcCheckArgs);
-
-                let report;
-                {
-                    let mut attester = GUEST_SEV_DEV.write();
-                    // random user data for test
-                    let user_data = vec![
-                        "ramdeoasdjasidioafhaskfsajfbguieowslkjvbdhsdjsakfheuiolksncjkasfeuismakd".as_bytes().to_vec(),
-                        "1238129edjcakhvsjakjaskjsajlkjlksank".as_bytes().to_vec(),
-                    ];
-    
-                    let report_data = crate::shield::hash_chunks(user_data);
-    
-                    report = attester.get_report(report_data);
-                    if  report.is_err() {
-                        error!(" get_report get error : {:?}", report);
-                    }
-                }
- 
-                
-                let res = provisioning_http_client(task);
-                if res.is_err() {
-                    error!(" provisioning_http_client get error : {:?}", res);
-                }
-                info!("Payload::ExecAthenAcCheck,  got report {:?}, provisioning_http_client res： {:?}", report, res);
+            let is_allowed = exec_req_authentication(AuthAcCheckArgs);
                         
-            }
-
-
-            WriteControlMsgResp(fd, &&UCallResp::ExecAthenAcCheckResp(is_allowd), true);
+            WriteControlMsgResp(fd, &&UCallResp::ExecAthenAcCheckResp(is_allowed), true);
         }
         Payload::ProcessIncommingTerminalIoFrame(args) => {
             info!("Payload::ProcessIncommingTerminalIoFrame start, pid {}", args.pid);

@@ -9,8 +9,7 @@ use qlib::kernel::kernel::timer::MonotonicNow;
 use qlib::kernel::kernel::time::Time;
 use qlib::linux_def::SysErr;
 use embedded_tls::blocking::*;
-use rsa::pkcs8::EncodePublicKey;
-use rsa::{PaddingScheme, RsaPrivateKey, RsaPublicKey};
+use rsa::{PaddingScheme, PublicKeyParts, RsaPrivateKey, RsaPublicKey};
 use zeroize::Zeroizing;
 use alloc::string::String;
 use qlib::common::*;
@@ -25,7 +24,8 @@ use alloc::string::ToString;
 use qlib::kernel::task::*;
 use qlib::linux_def::*;
 use qlib::shield_policy::*;
-
+use super::APPLICATION_INFO_KEEPER;
+use ssh_key;
 
 
 const SECRET_MANAGER_IP:  [u8;4] = [10, 206, 133, 76];
@@ -37,7 +37,8 @@ const RSA_KEY_TYPE: &str = "RSA";
 const RSA_ALGORITHM: &str = "RSA1_5";
 const RSA_PUBKEY_LENGTH: usize = 2048;
 const NEW_PADDING: fn() -> PaddingScheme = PaddingScheme::new_pkcs1v15_encrypt;
-pub const AES_256_GCM_ALGORITHM: &str = "A256GCM";
+const AES_256_GCM_ALGORITHM: &str = "A256GCM";
+const URI_TO_GET_KBS_SIGNING_KEY: &str = "default/signing_key/test";
 
 /// The supported TEE types:
 /// - Tdx: TDX TEE.
@@ -187,9 +188,11 @@ pub struct TeeKey {
 // The struct that used to export the public key of TEE.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TeePubKey {
-    kty: String,
-    alg: String,
-    pub k: String,
+    pub alg: String,
+    #[serde(rename = "k-mod")]
+    pub k_mod: String,
+    #[serde(rename = "k-exp")]
+    pub k_exp: String,
 }
 
 impl TeeKey {
@@ -208,15 +211,14 @@ impl TeeKey {
 
     // Export TEE public key as specific structure.
     pub fn export_pubkey(&self) -> Result<TeePubKey> {
-        let pem_line_ending = rsa::pkcs1::LineEnding::default();
-        let pubkey_pem_string = self.public_key
-                                            .to_public_key_pem(pem_line_ending)
-                                            .map_err(|e| Error::Common(format!("Serialize this public key as PEM-encoded SPKI with the given LineEnding: {:?}", e)))?;
+        let k_mod = base64::encode(self.public_key.n().to_bytes_be());
+        let k_exp = base64::encode(self.public_key.e().to_bytes_be());
+
 
         Ok(TeePubKey {
-            kty: RSA_KEY_TYPE.to_string(),
             alg: RSA_ALGORITHM.to_string(),
-            k: pubkey_pem_string,
+            k_mod,
+            k_exp,
         })
     }
 
@@ -313,7 +315,7 @@ impl ShieldProvisioningHttpSClient {
      */
     fn parse_auth_http_resp(&mut self, resp_buf: &[u8]) -> Result<()> {
 
-        info!("parse_auth_http_resp response  start");
+        log::debug!("parse_auth_http_resp response  start");
     
         let mut resp_headers = [httparse::EMPTY_HEADER; 4];
         let mut http_resp = httparse::Response::new(&mut resp_headers);
@@ -376,10 +378,10 @@ impl ShieldProvisioningHttpSClient {
      * }
      * To prevent relay attack, we put the hash of the nonce we got from http auth to the user data field of attestation report
      */
-    fn prepair_post_attest_http_req(&self) -> Result<String> {
+    fn prepair_post_attest_http_req(&self, software_maasurement: &str) -> Result<String> {
         
 
-        let tee_evidence = self.generate_evidence()?;
+        let tee_evidence = self.generate_evidence(software_maasurement)?;
     
         let serialized_req = serde_json::to_string(&tee_evidence).unwrap();
 
@@ -420,7 +422,7 @@ impl ShieldProvisioningHttpSClient {
     }
 
 
-    fn generate_evidence(&self) -> Result<Attestation> {
+    fn generate_evidence(&self, software_maasurement: &str) -> Result<Attestation> {
         let key = self
             .tee_key
             .as_ref()
@@ -431,10 +433,12 @@ impl ShieldProvisioningHttpSClient {
             .export_pubkey()
             .map_err(|e| Error::Common(format!("Export TEE pubkey failed: {:?}", e)))?;
 
-        // TODO: add the hash of image binary loaded to guest 
+
         let ehd_chunks = vec![
+            software_maasurement.to_string().into_bytes(),
             self.nonce.clone().into_bytes(),   // agains replay attack
-            tee_pubkey.k.clone().into_bytes(),  
+            tee_pubkey.k_mod.clone().into_bytes(),
+            tee_pubkey.k_exp.clone().into_bytes(),
         ];
 
         let ehd = super::hash_chunks(ehd_chunks);
@@ -477,7 +481,7 @@ impl ShieldProvisioningHttpSClient {
     */
     fn parse_http_get_resource_resp(&mut self, resp_buf: &[u8]) -> Result<Vec<u8>> {
 
-        info!("parse_http_get_resource_resp response  start");
+        debug!("parse_http_get_resource_resp response  start");
     
         let mut resp_headers = [httparse::EMPTY_HEADER; 4];
         let mut http_resp = httparse::Response::new(&mut resp_headers);
@@ -512,15 +516,16 @@ impl ShieldProvisioningHttpSClient {
         assert!(resp_payload_start > 0);
 
         let resp_payload = &resp_buf[resp_payload_start..];
+        debug!("parse_http_get_resource_resp resp_payload len {:?}", resp_payload.len());
         let response: Result<Response> = serde_json::from_slice(resp_payload).map_err(|x| {Error::Common(format!("parse_http_get_resource_resp serde_json::from_slice failed error code: {x}"))});
         if response.is_err() {
-            info!("{:?}", response.as_ref().err().unwrap());
+            debug!("{:?}", response.as_ref().err().unwrap());
             return Err(response.err().unwrap());
         }
 
         let secret = self.decrypt_response_output(response.unwrap());
 
-        info!("parse_http_get_resource_resp response finished, secret {:?}", secret);
+        debug!("parse_http_get_resource_resp response finished, secret {:?}", secret);
         return secret;
     
     }
@@ -804,14 +809,14 @@ impl embedded_io::blocking::Write for ShieldProvisioningHttpSClient {
 pub fn get_socket(task: &Task, _ip: [u8;4], _port: u16) -> Result<Arc<File>> {
 
     // get a qkernel socket file object, 
-    log::trace!("socket_connect start");
+    debug!("socket_connect start");
 
     let family = AFType::AF_INET;  // ipv4
     let socket_type = LibcConst::SOCK_STREAM as i32;
     let protocol = 0;   
     let ipv4_provider = ShieldSocketProvider { family: family};
 
-    log::trace!("socket_connect get a socekt from host");
+    debug!("socket_connect get a socekt from host");
     let socket_file = ipv4_provider.Socket(task, socket_type, protocol).unwrap().unwrap();
 
     let flags = SettableFileFlags {
@@ -826,17 +831,29 @@ pub fn get_socket(task: &Task, _ip: [u8;4], _port: u16) -> Result<Arc<File>> {
     assert!(blocking == true);
     let socket_op = socket_file.FileOp.clone();
 
+    let kbs_ip;
+    let kbs_port;
+
+    {
+
+        let app_info_keeper = APPLICATION_INFO_KEEPER.read();
+        
+        kbs_ip = app_info_keeper.get_kbs_ip().unwrap();
+        kbs_port = app_info_keeper.get_kbs_port().unwrap();
+
+    }
+
     let sock_addr = SockAddr::Inet(SockAddrInet {
         Family: AFType::AF_INET as u16,
-        Port: htons(SECRET_MANAGER_PORT),
-        Addr: SECRET_MANAGER_IP,
+        Port: htons(kbs_port),
+        Addr: kbs_ip,
         Zero: [0; 8],
     });
 
     let socket_addr_vec = sock_addr.ToVec().unwrap();
 
     socket_op.Connect(task, socket_addr_vec.as_slice(), blocking)?;
-    log::trace!("socket_connect connect to secret manager done");
+    debug!("socket_connect connect to secret manager done");
 
     return Ok(socket_file);
 }
@@ -879,9 +896,185 @@ fn set_up_tls<'a>(client: &'a ShieldProvisioningHttpSClient, read_record_buffer:
     Ok(tls)
 }
 
-pub fn provisioning_http_client(task: &Task) -> Result<Policy> {
 
-    log::trace!("provisioning_http_client start");
+
+fn get_policy(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSha256>, client: &mut ShieldProvisioningHttpSClient) -> Result<KbsPolicy> {
+
+
+    let policy_url;
+    {
+        let application_info_keeper = super::APPLICATION_INFO_KEEPER.read();
+        policy_url = application_info_keeper.kbs_policy_path.clone();
+    }
+
+    if policy_url.is_none() {
+        info!("user didn't provide policy, enclave will use default one");
+        return Err(Error::Common(format!("get_policy user didn't provide policy, enclave will use default one")));
+    }
+
+    let mut rx_buf_get_secret = [0; 8192];
+    debug!("get_policy policy_url {:?}, read buf len {:?}", policy_url, rx_buf_get_secret.len());
+
+    let get_resource_http = client.prepair_get_resource_http_req(policy_url.unwrap());
+
+    let resp_len = send_http_request_to_sm(tls, get_resource_http, &mut rx_buf_get_secret)
+        .map_err(|e| Error::Common(format!("get_policy provisioning_http_client, attestation phase 2: get resource get error: {:?}", e)))?;
+
+    let secret = client.parse_http_get_resource_resp(&rx_buf_get_secret[..resp_len as usize])
+        .map_err(|e| Error::Common(format!("get_policy provisioning_http_client, attestation phase 2: parse resp get error: {:?}", e)))?;
+
+    let http_get_resp = String::from_utf8_lossy(&secret).to_string();
+    log::debug!("get_policy provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, resp_len);
+
+    let bytes = base64::decode(secret)
+        .map_err(|e| Error::Common(format!("get_policy base64::decode failed to get secret {:?}", e)))?;
+    let policy: KbsPolicy = serde_json::from_slice(&bytes).map_err(|e| Error::Common(format!("get_policy serde_json::from_slice failed to get secret {:?}", e)))?;
+
+    log::info!("get_policy policy from kbs {:?}", policy);
+
+
+    Ok(policy)
+    
+}
+
+
+fn get_env_based_secret(env_url_in_kbs: String, tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSha256>, client: &mut ShieldProvisioningHttpSClient) -> Result<Vec<String>> {
+    
+    let env_get_resource_http = client.prepair_get_resource_http_req(env_url_in_kbs.to_string());
+    let mut rx_buf_for_env = [0; 4096];
+    let env_resp_len = send_http_request_to_sm(tls, env_get_resource_http, &mut rx_buf_for_env)
+        .map_err(|e| Error::Common(format!("get_env_based_secret provisioning_http_client, attestation phase 2: get resource get error: {:?}", e)))?;
+
+    let cmd_based_secret = client.parse_http_get_resource_resp(&rx_buf_for_env[..env_resp_len as usize])
+        .map_err(|e| Error::Common(format!("get_env_based_secret provisioning_http_client, attestation phase 2: parse resp get error: {:?}", e)))?;
+
+    let http_get_resp = String::from_utf8_lossy(&cmd_based_secret).to_string();
+    log::debug!("get_env_based_secret provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, env_resp_len);
+
+    let cmd_in_bytes = base64::decode(cmd_based_secret)
+        .map_err(|e| Error::Common(format!("get_env_based_secret base64::decode failed to get secret {:?}", e)))?;
+    let env: Vec<String> = serde_json::from_slice(&cmd_in_bytes).map_err(|e| Error::Common(format!("get_env_based_secret serde_json::from_slice failed to get secret {:?}", e)))?;
+
+    Ok(env)
+}
+
+
+fn get_cmd_env_based_secret(cmd_url_in_kbs: String, tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSha256>, client: &mut ShieldProvisioningHttpSClient) -> Result<EnvCmdBasedSecrets> {
+
+    let get_resource_http = client.prepair_get_resource_http_req(cmd_url_in_kbs.to_string());
+    let mut rx_buf_for_cmd = [0; 4096];
+    let resp_len = send_http_request_to_sm(tls, get_resource_http, &mut rx_buf_for_cmd)
+        .map_err(|e| Error::Common(format!("get_cmd_env_based_secret provisioning_http_client, attestation phase 2: get resource get error: {:?}", e)))?;
+
+    let secret = client.parse_http_get_resource_resp(&rx_buf_for_cmd[..resp_len as usize])
+        .map_err(|e| Error::Common(format!("get_cmd_env_based_secret provisioning_http_client, attestation phase 2: parse resp get error: {:?}", e)))?;
+
+    let http_get_resp = String::from_utf8_lossy(&secret).to_string();
+    log::info!("get_cmd_env_based_secret provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, resp_len);
+
+    let bytes = base64::decode(secret)
+        .map_err(|e| Error::Common(format!("get_cmd_env_based_secret base64::decode failed to get secret {:?}", e)))?;
+    let cmd_env: EnvCmdBasedSecrets = serde_json::from_slice(&bytes).map_err(|e| Error::Common(format!("get_cmd_based_secret serde_json::from_slice failed to get secret {:?}", e)))?;
+
+    Ok(cmd_env)
+
+}
+
+
+
+fn get_file_based_secret(file_based_secret_url_in_kbs: Vec<String>, tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSha256>, client: &mut ShieldProvisioningHttpSClient) -> Result<Vec<ConfigFile>> {
+
+
+    let mut configs = Vec::new();
+    for file_url in file_based_secret_url_in_kbs {
+
+        let get_resource_http = client.prepair_get_resource_http_req(file_url);
+        let mut rx_buf = [0; 8192];
+        let resp_len = send_http_request_to_sm(tls, get_resource_http, &mut rx_buf)
+            .map_err(|e| Error::Common(format!("get_file_based_secret provisioning_http_client, attestation phase 2: get resource get error: {:?}", e)))?;
+    
+        let file_based_secret = client.parse_http_get_resource_resp(&rx_buf[..resp_len as usize])
+            .map_err(|e| Error::Common(format!("get_file_based_secret provisioning_http_client, attestation phase 2: parse resp get error: {:?}", e)))?;
+    
+        let http_get_resp = String::from_utf8_lossy(&file_based_secret).to_string();
+        log::info!("get_file_based_secret provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, resp_len);
+    
+        let file_based_secret_in_bytes = base64::decode(file_based_secret)
+            .map_err(|e| Error::Common(format!("get_file_based_secret base64::decode failed to get secret {:?}", e)))?;
+        let config: ConfigFile = serde_json::from_slice(&file_based_secret_in_bytes).map_err(|e| Error::Common(format!("serde_json::from_slice failed to get secret {:?}", e)))?;
+    
+        configs.push(config);
+    }
+
+
+    Ok(configs)
+
+}
+
+
+fn get_secret(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSha256>, client: &mut ShieldProvisioningHttpSClient) -> Result<KbsSecrets> {
+
+    let cmd_env_url;
+    let file_urls;
+
+
+    let mut kbs_secret = KbsSecrets::default();
+
+    {
+        let application_info_keeper = super::APPLICATION_INFO_KEEPER.read();
+        cmd_env_url = application_info_keeper.kbs_cmd_env_based_secret_path.clone();
+        file_urls = application_info_keeper.kbs_file_based_secret_paths.clone();
+    }
+
+    debug!("get_secret cmd_url {:?}, file_urls {:?}", cmd_env_url, file_urls);
+
+
+    if cmd_env_url.is_some() {
+        let cmd = get_cmd_env_based_secret(cmd_env_url.unwrap(), tls, client)?;
+        kbs_secret.env_cmd_secrets = Some(cmd);
+    }
+
+    if file_urls.len() > 0 {
+        let config_files = get_file_based_secret(file_urls, tls, client)?;
+        kbs_secret.config_fils = Some(config_files);
+    }
+
+    log::debug!("get_secret from kbs {:?}", kbs_secret);
+    Ok(kbs_secret)
+
+}
+
+
+fn get_kbs_signing_key(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSha256>, client: &mut ShieldProvisioningHttpSClient) -> Result<ssh_key::PrivateKey> {
+
+
+    let get_resource_http = client.prepair_get_resource_http_req(URI_TO_GET_KBS_SIGNING_KEY.to_string());
+    let mut rx_buf_for_cmd = [0; 4096];
+    let resp_len = send_http_request_to_sm(tls, get_resource_http, &mut rx_buf_for_cmd)
+        .map_err(|e| Error::Common(format!("get_kbs_signing_key provisioning_http_client, attestation phase 2: get resource get error: {:?}", e)))?;
+
+    let secret = client.parse_http_get_resource_resp(&rx_buf_for_cmd[..resp_len as usize])
+        .map_err(|e| Error::Common(format!("get_kbs_signing_key provisioning_http_client, attestation phase 2: parse resp get error: {:?}", e)))?;
+    let to_private_key = ssh_key::PrivateKey::from_bytes(&secret)
+        .map_err(|e| Error::Common(format!("get_kbs_signing_key ssh_key::PrivateKey::from_bytes get error: {:?}", e)))?;
+
+
+    log::debug!("get_kbs_signing_key from kbs {}", &*to_private_key.to_openssh(ssh_key::LineEnding::LF).unwrap());
+
+    {
+        let mut kbs_signing_key_keeper = super::sys_attestation_report::KBS_SIGNING_KEY_KEEPER.write();
+        kbs_signing_key_keeper.set_kbs_signing_key(secret).unwrap();
+    }
+
+    Ok(to_private_key)
+}
+
+
+
+
+pub fn provisioning_http_client(task: &Task, software_maasurement: &str) -> Result<(KbsPolicy, KbsSecrets)> {
+
+    log::debug!("provisioning_http_client start");
 
     let socket_to_sm = get_socket(task, SECRET_MANAGER_IP, SECRET_MANAGER_PORT)
         .map_err(|e| Error::Common(format!("provisioning_http_client get_socket get error {:?}", e)))?;
@@ -898,52 +1091,65 @@ pub fn provisioning_http_client(task: &Task) -> Result<Policy> {
     let mut tls = set_up_tls(&client_clone, &mut read_record_buffer, &mut write_record_buffer, &mut rng)
         .map_err(|e| Error::Common(format!("provisioning_http_client set_up_tls get error {:?}", e)))?;
 
-    // attestation phase 1.1a: auth
-    let auth_http_req = client.prepair_post_auth_http_req();
-    let mut rx_buf = [0; 4096];
-    let resp_len = send_http_request_to_sm(&mut tls, auth_http_req, &mut rx_buf)
-        .map_err(|e| Error::Common(format!("provisioning_http_client send_http_request_to_sm get error {:?}", e)))?;
-    let http_get_resp = String::from_utf8_lossy(&rx_buf[..resp_len as usize]).to_string();
-    info!("provisioning_https_client auth resp: {}, resp_len {}", http_get_resp, resp_len);
+    {
+            // attestation phase 1.1a: auth
+        let auth_http_req = client.prepair_post_auth_http_req();
+        let mut rx_buf = [0; 4096];
+        let resp_len = send_http_request_to_sm(&mut tls, auth_http_req, &mut rx_buf)
+            .map_err(|e| Error::Common(format!("provisioning_http_client send_http_request_to_sm get error {:?}", e)))?;
+        let http_get_resp = String::from_utf8_lossy(&rx_buf[..resp_len as usize]).to_string();
+        log::debug!("provisioning_https_client auth resp: {}, resp_len {}", http_get_resp, resp_len);
 
-    // attestation phase 1.1b: parse auth response
-    client.parse_auth_http_resp(&rx_buf[..resp_len as usize])
+            // attestation phase 1.1b: parse auth response
+        client.parse_auth_http_resp(&rx_buf[..resp_len as usize])
         .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 1: parse auth response get error {:?}", e)))?;
+    }
 
-    // attestation phase 1.2a: sent attest req
-    let post_http_attest_req = client.prepair_post_attest_http_req()
-        .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 1.2a: sent attest req to sm get error {:?}", e)))?;
 
-    let mut rx_buf = [0; 4096];
-    let resp_len = send_http_request_to_sm(&mut tls, post_http_attest_req, &mut rx_buf)
-        .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 1.2a: sent attest req to sm get error:{:?}", e)))?;
+    {
+        // attestation phase 1.2a: sent attest req
+        let post_http_attest_req = client.prepair_post_attest_http_req(software_maasurement)
+            .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 1.2a: sent attest req to sm get error {:?}", e)))?;
 
-    let http_get_resp = String::from_utf8_lossy(&rx_buf[..resp_len as usize]).to_string();
-    info!("provisioning_https_client attest resp: {}, resp_len {}", http_get_resp, resp_len);
+        let mut rx_buf = [0; 4096];
+        let resp_len = send_http_request_to_sm(&mut tls, post_http_attest_req, &mut rx_buf)
+            .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 1.2a: sent attest req to sm get error:{:?}", e)))?;
 
-    // attestation phase 1.2b: parse attest response
-    client.parse_attest_http_resp(&rx_buf[..resp_len as usize])
-        .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 1: parse auth response get error {:?}", e)))?;
+        let http_get_resp = String::from_utf8_lossy(&rx_buf[..resp_len as usize]).to_string();
+        log::debug!("provisioning_https_client attest resp: {}, resp_len {}", http_get_resp, resp_len);
 
-    // attestation phase 2 get resource, policy, secret, signing key
-    // let's get the policy first
-    // TODO: get url from ymal
-    let get_resource_http = client.prepair_get_resource_http_req("default/test_resources/test".to_string());
-    let mut rx_buf = [0; 4096];
-    let resp_len = send_http_request_to_sm(&mut tls, get_resource_http, &mut rx_buf)
-        .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 2: get resource get error: {:?}", e)))?;
+        // attestation phase 1.2b: parse attest response
+        client.parse_attest_http_resp(&rx_buf[..resp_len as usize])
+            .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 1: parse auth response get error {:?}", e)))?;
 
-    let secret = client.parse_http_get_resource_resp(&rx_buf[..resp_len as usize])
-        .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 2: parse resp get error: {:?}", e)))?;
+    }
 
-    let http_get_resp = String::from_utf8_lossy(&secret).to_string();
-    info!("provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, resp_len);
+    let kbs_secret = get_secret(&mut tls, &mut client);
+    if kbs_secret.is_err() {
+        info!("provisioning_http_client  get_secret(&mut tls, &mut client) got erorr {:?}", kbs_secret);
+        return Err(kbs_secret.err().unwrap());
+    }
 
-    let bytes = base64::decode(secret)
-        .map_err(|e| Error::Common(format!("base64::decode failed to get secret {:?}", e)))?;
-    let policy: Policy = serde_json::from_slice(&bytes).map_err(|e| Error::Common(format!("serde_json::from_slice failed to get secret {:?}", e)))?;
+    let kbs_policy = get_policy(&mut tls, &mut client);
+    if kbs_policy.is_err() {
+        info!("provisioning_http_client  gget_policy(&mut tls, &mut client); got erorr {:?}", kbs_policy);
+        return Err(kbs_policy.err().unwrap());
+    }
 
-    info!("policy for kbs {:?}", policy);
+    let kbs_signing_Key = get_kbs_signing_key(&mut tls, &mut client);
+    if kbs_signing_Key.is_err() {
+        info!("provisioning_http_client   get_kbs_signing_key(&mut tls, &mut client); got erorr {:?}", kbs_signing_Key);
+    }
 
-    Ok(policy)
+    let kbs_secret = kbs_secret.unwrap();
+    let kbs_policy = kbs_policy.unwrap();
+
+    log::info!("provisioning_http_client policy for kbs kbs_policy {:?}, kbs_secret {:?}", kbs_policy, kbs_secret);
+
+    Ok((kbs_policy, kbs_secret))
 }
+
+
+
+
+

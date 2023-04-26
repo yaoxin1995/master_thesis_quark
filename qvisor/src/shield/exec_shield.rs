@@ -167,6 +167,6 @@ impl ExecAthentityAcChekcer{
 
 }
 
-pub fn exec_req_authentication (exec_req: ExecAuthenAcCheckArgs) -> bool {
+pub fn exec_req_authentication (_exec_req: ExecAuthenAcCheckArgs) -> bool {
     false
 }

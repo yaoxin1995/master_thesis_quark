@@ -8,6 +8,7 @@ pub mod secret_injection;
 pub mod software_measurement_manager;
 pub mod sys_attestation_report;
 pub mod guest_syscall_interceptor;
+pub mod qkernel_log_magager;
 
 use guest_syscall_interceptor::syscall_interceptor_policy_update;
 use self::exec_shield::*;
@@ -191,7 +192,7 @@ pub fn init_shielding_layer () ->() {
     // init sev guest driver
     GUEST_SEV_DEV.write().init(0);
 
-
+    qkernel_log_magager::qlog_magager_init().unwrap();
     
 }
 
@@ -240,6 +241,8 @@ pub fn policy_provisioning (policy: &KbsPolicy) -> Result<()> {
 
     }
 
+    qkernel_log_magager::qlog_magager_update(&policy.qkernel_log_config).unwrap();
+
     Ok(())
 }
 
@@ -283,6 +286,8 @@ pub fn policy_update (new_policy: &KbsPolicy,  exec_ac: &mut RwLockWriteGuard<Ex
     }
 
     syscall_interceptor_policy_update(&new_policy.syscall_interceptor_config).unwrap();
+
+    qkernel_log_magager::qlog_magager_update(&new_policy.qkernel_log_config).unwrap();
 
     Ok(())
 }

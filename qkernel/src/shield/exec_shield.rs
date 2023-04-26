@@ -50,13 +50,13 @@ impl StdoutExecResultShiled{
     }
 
 
-    pub fn encryptContainerStdouterr (&self, src: DataBuff, user_type: Option<UserType>, stdio_type: StdioType) -> DataBuff {
+    pub fn encryptContainerStdouterr (&self, src: DataBuff, user_type: Option<UserType>, stdio_type: StdioType) -> Result<DataBuff> {
 
         debug!("encryptContainerStdouterr 00000000, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
         // case 0: if this is a unprivileged exec req in single cmd mode
         if user_type.is_some() && user_type.as_ref().unwrap().eq(&UserType::Unprivileged) && stdio_type ==  StdioType::ExecProcessStdio {
             info!("case 0: if this is a unprivileged exec req in single cmd mode, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
-            return src;
+            return Ok(src);
         }
 
         match stdio_type {
@@ -64,20 +64,20 @@ impl StdoutExecResultShiled{
             StdioType::ContaienrStdio => {
                 debug!("case 1:if this is subcontainer stdout / stderr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
                 if self.policy.privileged_user_config.enable_container_logs_encryption == false {
-                    return src;
+                    return Ok(src);
                 }
             },
             // case 2: if this is a privileged exec req in single cmd mode
             StdioType::ExecProcessStdio => {
                 debug!("case 2:if this is subcontainer stdout / stderr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
                 if self.policy.privileged_user_config.exec_result_encryption == false {
-                    return src;
+                    return Ok(src);
                 }
             },
             // case 3: if this is root container stdout / stderr
             StdioType::SandboxStdio => {
                 debug!("case 3:if this is root container stdout / stderr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
-                return src;
+                return Ok(src);
             },
             StdioType::SessionAllocationStdio(ref s) => {
                 debug!("case 4:if this is session allocation request, user_type:{:?}, stdio_type {:?}, session {:?}", user_type, stdio_type, s);
@@ -87,7 +87,7 @@ impl StdoutExecResultShiled{
                 // write session to stdout
                 let mut buf= DataBuff::New(encrypted_session.len());
                 buf.buf = encrypted_session;
-                return buf;
+                return Ok(buf);
             },
             StdioType::PolicyUpdate(ref update_res) => {
 
@@ -109,7 +109,7 @@ impl StdoutExecResultShiled{
                 let encodedOutBoundDate = prepareEncodedIoFrame(result.as_bytes(), &self.key).unwrap();
                 let mut buf = DataBuff::New(encodedOutBoundDate.len());
                 buf.buf = encodedOutBoundDate.clone();            
-                return buf;
+                return Ok(buf);
             }
         }
         debug!("case5 encryptContainerStdouterr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
@@ -131,8 +131,7 @@ impl StdoutExecResultShiled{
         //     assert!(res.buf[i] == *el);
         // }
         
-        res
-
+        Ok(res)
     }
 
 }

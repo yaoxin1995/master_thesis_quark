@@ -14,32 +14,20 @@ pub struct InodeTracker {
 }
 
 impl InodeTracker {
-
     pub fn init(&mut self) -> () {
-        self.inode_track= BTreeMap::new();
     }
 
-    pub fn addInoteToTrack(&mut self, key: u64, value: TrackInodeType) -> (){
-
-        info!("add inode id {:?}, type:{:?}", key, value);
-        self.inode_track.insert(key, value);
+    pub fn addInoteToTrack(&mut self, _key: u64, _value: TrackInodeType) -> (){
     }
 
-    pub fn rmInoteToTrack(&mut self, key: u64) -> (){
-
-        let res = self.inode_track.remove_entry(&key);
-        let (_k, _v) = res.unwrap();
-        info!("removed inode id {:?}, type:{:?}", _k, _v);
+    pub fn rmInoteToTrack(&mut self, _key: u64) -> (){
     }
 
-    pub fn isInodeExist(&self, key: &u64) -> bool {
-        debug!("isInodeExist, key{:?} , exist{:?}", key ,self.inode_track.contains_key(key));
-        self.inode_track.contains_key(key)
+    pub fn isInodeExist(&self, _key: &u64) -> bool {
+        false
     }
 
-    pub fn getInodeType (&self, key: &u64) -> TrackInodeType{
-        
-        let res =  self.inode_track.get(key).unwrap().clone();
-        res
+    pub fn getInodeType (&self, _key: &u64) -> TrackInodeType{
+        TrackInodeType::default()
     }
 }

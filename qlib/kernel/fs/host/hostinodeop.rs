@@ -777,11 +777,11 @@ impl HostInodeOp {
                 let trackedInodeType = inode_checker_locked.getInodeType(&inode_id);
                 match trackedInodeType {
                     TrackInodeType::Stdout(args) => {
-                        buf = stdout_shiled_readlocked.encryptContainerStdouterr(buf, args.exec_user_type, args.stdio_type);
+                        buf = stdout_shiled_readlocked.encryptContainerStdouterr(buf, args.exec_user_type, args.stdio_type).unwrap();
                         len = buf.Len();
                     },
                     TrackInodeType::Stderro (args) => {
-                        buf = stdout_shiled_readlocked.encryptContainerStdouterr(buf, args.exec_user_type, args.stdio_type);
+                        buf = stdout_shiled_readlocked.encryptContainerStdouterr(buf, args.exec_user_type, args.stdio_type).unwrap();
                         len = buf.Len();
                     },
                     _ => {

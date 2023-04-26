@@ -1,6 +1,6 @@
 use spin::rwlock::RwLock;
 use crate::qlib::kernel::boot::{oci, config};
-use crate::qlib::shield_policy::{Secret, KbsSecrets};
+use crate::qlib::shield_policy::{KbsSecrets};
 use alloc::vec::Vec;
 use alloc::string::ToString;
 use crate::qlib::kernel::task::Task;

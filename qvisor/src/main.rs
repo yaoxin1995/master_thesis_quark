@@ -51,16 +51,8 @@ extern crate regex;
 extern crate simplelog;
 extern crate spin;
 extern crate tabwriter;
-
-extern crate aes_gcm;
-extern crate getrandom;
-extern crate hmac;
-extern crate sha2;
-extern crate hex_literal;
-extern crate base64ct;
-
 extern crate modular_bitfield;
-extern crate p384;
+extern crate aes_gcm;
 
 #[macro_use]
 pub mod asm;

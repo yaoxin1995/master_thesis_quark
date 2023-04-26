@@ -589,44 +589,6 @@ pub extern "C" fn rust_main(
         if autoStart {
             CreateTask(StartRootContainer as u64, ptr::null(), false);
         }
-
-let encoded_key = r#"
------BEGIN OPENSSH PRIVATE KEY-----
-b3BlbnNzaC1rZXktdjEAAAAACmFlczI1Ni1jdHIAAAAGYmNyeXB0AAAAGAAAABBKH96ujW
-umB6/WnTNPjTeaAAAAEAAAAAEAAAAzAAAAC3NzaC1lZDI1NTE5AAAAILM+rvN+ot98qgEN
-796jTiQfZfG1KaT0PtFDJ/XFSqtiAAAAoFzvbvyFMhAiwBOXF0mhUUacPUCMZXivG2up2c
-hEnAw1b6BLRPyWbY5cC2n9ggD4ivJ1zSts6sBgjyiXQAReyrP35myYvT/OIB/NpwZM/xIJ
-N7MHSUzlkX4adBrga3f7GS4uv4ChOoxC4XsE5HsxtGsq1X8jzqLlZTmOcxkcEneYQexrUc
-bQP0o+gL5aKK8cQgiIlXeDbRjqhc4+h4EF6lY=
------END OPENSSH PRIVATE KEY-----
-"#;
-
-        let encrypted_key = PrivateKey::from_openssh(encoded_key);
-        if encrypted_key.is_err() {
-            info!("PrivateKey::from_openssh(encoded_key) got err {:?}", encrypted_key);
-        } else {
-
-            let encrypted_key = encrypted_key.unwrap();
-            assert!(encrypted_key.is_encrypted());
-            let msg = b"TEE RSA key decrypt failed:";
-
-            
-            let signature = encrypted_key.sign("ngnix", ssh_key::HashAlg::Sha256, msg);
-            if signature.is_err() {
-                info!("encrypted_key.sign got err {:?}", signature);
-            } else {
-                let signature = signature.unwrap().to_pem(ssh_key::LineEnding::LF);
-
-                if signature.is_err() {
-                    info!("signature.unwrap().to_pem(ssh_key::LineEnding::LF) {:?}", signature);
-                } else {
-                    let signature = signature.unwrap();
-                    let public_key = encrypted_key.public_key().to_openssh();
-                    info!("get signature {:?}, public_key {:?}", signature, public_key);
-                }
-
-            }
-        }
         CreateTask(ControllerProcess as u64, ptr::null(), true);
     }
 

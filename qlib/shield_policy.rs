@@ -147,11 +147,32 @@ pub struct BackEndSyscallInterceptorConfig {
     pub syscalls: Vec<u64>
 }
 
+#[derive(Default, Clone, Copy, Debug, PartialOrd, Ord, Eq, PartialEq, Serialize, Deserialize)]
+pub enum QkernelDebugLevel {
+    #[default]
+    Off,
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+#[derive(Default, Clone, Copy, Debug, PartialOrd, Ord, Eq, PartialEq, Serialize, Deserialize)]
+pub struct QlogPolicy {
+    pub enable: bool,
+    pub allowed_max_log_level: QkernelDebugLevel
+}
+
+
+
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct KbsPolicy {
     pub enable_policy_updata: bool,
     pub privileged_user_config: PrivilegedUserConfig,
     pub unprivileged_user_config:  UnprivilegedUserConfig,
     pub privileged_user_key_slice: String,
+    pub qkernel_log_config: QlogPolicy,
     pub syscall_interceptor_config: BackEndSyscallInterceptorConfig,
+
 }

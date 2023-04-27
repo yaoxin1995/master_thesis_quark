@@ -124,11 +124,11 @@ impl ApplicationInfoKeeper {
 
                 let pathes: Vec<&str> = key_value[1].split(',').collect();
 
-                assert!(self.kbs_file_based_secret_paths.len() == 0);
+                let mut new_path = Vec::new();
                 for path in pathes {
-
-                    self.kbs_file_based_secret_paths.push(path.to_string());
-                }                
+                    new_path.push(path.to_string());
+                }
+                self.kbs_file_based_secret_paths = new_path;                
             } else if key_value[0].eq(SHILED_POLICY_PATH) {
 
                 self.kbs_policy_path = Some(key_value[1].to_string());

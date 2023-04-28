@@ -178,10 +178,6 @@ pub fn SignalProcess(cid: &str, pid: i32, signo: i32, fgProcess: bool) -> Result
     }
 }
 
-<<<<<<< HEAD
-=======
-
->>>>>>> fd2a8c34... disable unfinished qkernel terminal shield
 // Sandbox wraps a sandbox process.
 //
 // Note: Sandbox must be immutable because a copy of it is saved for each

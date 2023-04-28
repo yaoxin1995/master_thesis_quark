@@ -283,6 +283,21 @@ pub fn Load(
 ) -> Result<(u64, u64, u64)> {
     let vdsoAddr = LoadVDSO(task)?;
 
+    let mut name = Base(&filename);
+    if name.len() > TASK_COMM_LEN - 1 {
+        name = &name[0..TASK_COMM_LEN - 1];
+    }
+
+    let app_name;
+    let app_loaded;
+    {
+        let app_info_keeper = APPLICATION_INFO_KEEPER.read();
+
+        app_name = app_info_keeper.get_application_name().unwrap().to_string();
+        app_loaded = app_info_keeper.is_application_loaded().unwrap();
+    }
+
+
     info!("start load isSubContainer {:?}, file name {:?} is mongond {:?}, argv {:?}, envv {:?}", isSubContainer, filename, filename.eq("/usr/bin/mongod"), argv, envv);
 
     let (loaded, executable, tmpArgv) = LoadExecutable(task, filename, argv)?;
@@ -293,10 +308,6 @@ pub fn Load(
     task.mm.BrkSetup(e);
     task.mm.SetExecutable(&executable);
 
-    let mut name = Base(&filename);
-    if name.len() > TASK_COMM_LEN - 1 {
-        name = &name[0..TASK_COMM_LEN - 1];
-    }
 
     task.thread.as_ref().unwrap().lock().name = name.to_string();
 
@@ -314,7 +325,7 @@ pub fn Load(
 
         let mut measurement_manager = measurement_manager.unwrap();
 
-        let res = measurement_manager.measure_stack(loaded.auxv.clone());
+        let res = measurement_manager.measure_stack(loaded.auxv.clone(), app_name.eq(name));
         if res.is_err() {
             info!("Loadmeasurement_manager.measure_stack got error {:?}", res);
             return Err(res.err().unwrap());
@@ -323,52 +334,50 @@ pub fn Load(
         software_measurement= measurement_manager.get_measurement().unwrap();
     }
 
-    let app_name;
-    let app_loaded;
 
-    {
-        let app_info_keeper = APPLICATION_INFO_KEEPER.read();
-
-        app_name = app_info_keeper.get_application_name().unwrap().to_string();
-        app_loaded = app_info_keeper.is_application_loaded().unwrap();
-    }
 
     info!("Load app_name {:?}, name {:?}, app_loaded {:?}, process id {:?}", app_name, name, app_loaded, task.Thread().ThreadGroup().ID());
       
-    // trigger remote attestation and secret provisioning if the kernel is going to launch application binary
-    if app_name.eq(name) && !app_loaded {
 
-
+    if app_name.eq(name){
         debug!("Load attestation begin, the software measurement is {:?}", software_measurement);
 
-        // attestation, panic if attestation failed
-        let res = https_attestation_provisioning_cli::provisioning_http_client(task, &software_measurement);
-        if res.is_err() {
-            info!("https_attestation_provisioning_cli::provisioning_http_client(task) got error {:?}", res);
-            return Err(res.err().unwrap());
-        }
-
-        let (shield_policy, secret) = res.unwrap();
-        // updata the policy
-        policy_provisioning(&shield_policy).unwrap();
-
-        // secret injection
-
-        guest_syscall_interceptor::syscall_interceptor_init(shield_policy.syscall_interceptor_config.clone(),  task.Thread().ThreadGroup().ID()).unwrap();
-
-        // file based secret injection
-        {
-            let mut secret_injector =  SECRET_KEEPER.write();
-
-            let res = secret_injector.bookkeep_file_based_secret(secret.clone());
+        // trigger remote attestation and secret provisioning when the kernel is going to launch application binary first time
+        // skip if application is restarted
+        if !app_loaded {
+            let res = https_attestation_provisioning_cli::provisioning_http_client(task, &software_measurement);
             if res.is_err() {
-                info!("Load: failed to call file_based_secret_injection");
+                info!("https_attestation_provisioning_cli::provisioning_http_client(task) got error {:?}", res);
+                return Err(res.err().unwrap());
+            }
+    
+            let (shield_policy, secret) = res.unwrap();
+            // updata the policy
+            policy_provisioning(&shield_policy).unwrap();
+
+            guest_syscall_interceptor::syscall_interceptor_init(shield_policy.syscall_interceptor_config.clone()).unwrap();
+
+            {
+                let mut secret_injector =  SECRET_KEEPER.write();
+    
+                let res = secret_injector.bookkeep_secrets(secret.clone());
+                if res.is_err() {
+                    info!("Load: failed to call file_based_secret_injection");
+                }
             }
         }
 
+        // attestation, panic if attestation failed
+        // secret injection
+        guest_syscall_interceptor::syscall_interceptor_set_app_pid(task.Thread().ThreadGroup().ID()).unwrap();
+
+        // file based secret injection
+
+        let env_arg_secret;
         {
             let secret_injector = SECRET_KEEPER.read();
             let res = secret_injector.inject_file_based_secret_to_secret_file_system(task);
+            env_arg_secret= secret_injector.arg_env_based_secrets.clone();
 
             if res.is_err() {
                 info!("Load: failed to set up file system for secrets on guest memory");
@@ -376,9 +385,9 @@ pub fn Load(
         }
 
         // env based secret injection
-        if secret.env_cmd_secrets.is_some() {
+        if env_arg_secret.is_some() {
 
-            let cmd_envs = secret.env_cmd_secrets.as_ref().unwrap();
+            let cmd_envs = env_arg_secret.as_ref().unwrap();
             let mut env_secrets = cmd_envs.env_variables.clone();
             envv.append(&mut env_secrets);
     
@@ -387,7 +396,6 @@ pub fn Load(
             argv.append(&mut arg_secrets);
 
         }
-
 
         {
             let mut  app_info_keeper = APPLICATION_INFO_KEEPER.write();

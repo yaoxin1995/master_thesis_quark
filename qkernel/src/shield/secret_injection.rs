@@ -10,6 +10,7 @@ use crate::qlib::kernel::boot::fs::MountSubmounts;
 use qlib::common::*;
 use alloc::collections::btree_map::BTreeMap;
 use alloc::string::String;
+use shield::EnvCmdBasedSecrets;
 
 lazy_static! {
     pub static ref SECRET_KEEPER:  RwLock<SecretKeeper> = RwLock::new(SecretKeeper::default());
@@ -22,6 +23,7 @@ pub struct SecretKeeper {
     initialized: bool,
     pub secrets_mount_info: FileSystemMount,
     pub file_secrets:  BTreeMap<String, Vec<u8>>,  // key: file name, value: secret
+    pub arg_env_based_secrets: Option<EnvCmdBasedSecrets>,
 }
 
 
@@ -34,9 +36,11 @@ impl SecretKeeper {
         Ok(())
     }
 
-    pub fn bookkeep_file_based_secret (&mut self, secrets: KbsSecrets) -> Result<()> {
+    pub fn bookkeep_secrets (&mut self, secrets: KbsSecrets) -> Result<()> {
 
-        info!("file_based_secret_injection");
+        info!("bookkeep_secrets");
+
+        self.arg_env_based_secrets = secrets.env_cmd_secrets;
 
         if secrets.config_fils.is_none() {
             return Ok(());

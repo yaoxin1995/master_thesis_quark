@@ -54,7 +54,7 @@ impl SoftwareMeasurementManager {
      *  Only measure the auxv we got from elf file is enough,
      *  Other data like, envv, argv, are measuared by `measure_process_spec`
      */
-    pub fn measure_stack(&mut self, _auxv: Vec<AuxEntry>) -> Result<()> {
+    pub fn measure_stack(&mut self, _auxv: Vec<AuxEntry>, _is_app: bool) -> Result<()> {
         Err(Error::NotSupport)
     }
 

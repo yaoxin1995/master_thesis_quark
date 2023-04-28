@@ -29,14 +29,23 @@ pub fn syscall_interceptor_policy_update(policy: &BackEndSyscallInterceptorConfi
 }
 
 
-pub fn syscall_interceptor_init(policy: BackEndSyscallInterceptorConfig, application_pid: i32) -> Result<()> {
+pub fn syscall_interceptor_init(policy: BackEndSyscallInterceptorConfig) -> Result<()> {
 
     let mut syscall_info_keeper = SYSCALLINTERCEPTOR.write();
 
-    debug!("syscall_interceptor_init policy {:?}, task id {:?}", policy, application_pid);
+    debug!("syscall_interceptor_init policy {:?}", policy);
     syscall_info_keeper.policy = policy;
-    syscall_info_keeper.application_pid = application_pid;
     syscall_info_keeper.is_init = true;
+
+    Ok(())
+}
+
+pub fn syscall_interceptor_set_app_pid(application_pid: i32) -> Result<()> {
+
+    let mut syscall_info_keeper = SYSCALLINTERCEPTOR.write();
+
+    debug!("syscall_interceptor_set_app_pid pid {:?}", application_pid);
+    syscall_info_keeper.application_pid = application_pid;
 
     Ok(())
 }

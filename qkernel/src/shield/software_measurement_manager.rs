@@ -27,13 +27,27 @@ struct QKernelArgs {
     autoStart: bool
 }
 
+enum MeasurementType{
+    AppRef,
+    Global,
+    Tmp
+}
+
 
 #[derive(Debug, Default)]
 pub struct SoftwareMeasurementManager {
     containerlized_app_name: String,
     is_app_loaded: bool,
+    load_app_start: bool,
+    load_app_end: bool,
     //  a base64 of the sha512
-    measurement : String,
+    // measurement that tracking the qkernel behavier after launch
+    global_measurement : String,
+    // measurement that tracks the appllication building process
+    app_ref_measurement : String,
+    // measurement that tracks the application rebuilding process (app exit, k8s tries to restart the app)
+    // if the tmp_measurement doesn't match the  app_ref_measurement, panic!!! 
+    tmp_measurement : String,
 }
 
 
@@ -70,21 +84,30 @@ pub fn is_shared_lib(file_name: &str) -> Result<bool> {
 
 impl SoftwareMeasurementManager {
 
-    fn updata_measurement(&mut self, new_data: Vec<u8>) -> Result<()> {
+    fn updata_measurement(&mut self, new_data: Vec<u8>, m_type: MeasurementType) -> Result<()> {
+
+        let measurement = match m_type {
+            MeasurementType::Global => self.global_measurement.clone(),
+            MeasurementType::AppRef => self.app_ref_measurement.clone(),
+            MeasurementType::Tmp => self.tmp_measurement.clone(),   
+        };
 
         let chunks = vec![
-            self.measurement.as_bytes().to_vec(),
+            measurement.as_bytes().to_vec(),
             new_data,  
         ];
 
         let hash_res = super::hash_chunks(chunks);
 
-        self.measurement = hash_res;
+        self.global_measurement = hash_res;
 
         Ok(())
     }
 
     pub fn measure_process_spec(&mut self, proc_spec: &Process) -> Result<()> {
+
+        self.load_app_end = false;
+        self.tmp_measurement = String::default();
 
         let proccess_spec_vec = serde_json::to_vec(proc_spec);
         if proccess_spec_vec.is_err() {
@@ -94,8 +117,12 @@ impl SoftwareMeasurementManager {
 
         let proccess_spec_vec_in_bytes = proccess_spec_vec.unwrap();
 
-        self.updata_measurement(proccess_spec_vec_in_bytes).unwrap();
-
+        if self.is_app_loaded {
+            self.updata_measurement(proccess_spec_vec_in_bytes, MeasurementType::Tmp).unwrap();
+        } else {
+            self.updata_measurement(proccess_spec_vec_in_bytes.clone(), MeasurementType::Global).unwrap();
+            self.updata_measurement(proccess_spec_vec_in_bytes, MeasurementType::AppRef).unwrap();
+        }
         Ok(())
     }
 
@@ -126,7 +153,7 @@ impl SoftwareMeasurementManager {
         let kernel_args_in_bytes = serde_json::to_vec(&qkernel_args)
             .map_err(|e| Error::Common(format!("measure_qkernel_argument, serde_json::to_vec(&qkernel_args) get error {:?}", e)))?;
 
-        self.updata_measurement(kernel_args_in_bytes).unwrap();
+        self.updata_measurement(kernel_args_in_bytes, MeasurementType::Global).unwrap();
 
         Ok(())
     }
@@ -135,7 +162,7 @@ impl SoftwareMeasurementManager {
      *  Only measure the auxv we got from elf file is enough,
      *  Other data like, envv, argv, are measuared by `measure_process_spec`
      */
-    pub fn measure_stack(&mut self, auxv: Vec<AuxEntry>) -> Result<()> {
+    pub fn measure_stack(&mut self, auxv: Vec<AuxEntry>, is_app: bool) -> Result<()> {
 
         let mut aux_entries_in_byte = Vec::new();
         for entry in auxv {
@@ -144,7 +171,36 @@ impl SoftwareMeasurementManager {
             aux_entries_in_byte.append(&mut entry_in_byte);
         }
 
-        self.updata_measurement(aux_entries_in_byte).unwrap();
+        // app retart
+        if self.is_app_loaded && !self.load_app_end && !is_app {
+            self.updata_measurement(aux_entries_in_byte, MeasurementType::Tmp).unwrap();
+        // app restart, app binary loading is finished
+        } else if self.is_app_loaded && !self.load_app_end && is_app{
+            self.updata_measurement(aux_entries_in_byte, MeasurementType::Tmp).unwrap();
+
+            let app_ref_measurement = self.app_ref_measurement.clone();
+            let tmp_measurement = self.tmp_measurement.clone();
+
+            if app_ref_measurement.eq(&tmp_measurement) {
+                self.load_app_end = true;
+                info!("app restart successfully");
+                return Ok(());
+            }
+
+            panic!("tmp_measurement doesn't match the app_ref_measurement, k8s tries to restart application using bad bainary")
+        // during app first time loading
+        } else if !self.is_app_loaded && !self.load_app_end && !is_app {
+            self.updata_measurement(aux_entries_in_byte.clone(), MeasurementType::AppRef).unwrap();
+            self.updata_measurement(aux_entries_in_byte, MeasurementType::Global).unwrap();
+        // app first time loading us finished
+        } else if !self.is_app_loaded && !self.load_app_end && is_app{
+            self.updata_measurement(aux_entries_in_byte.clone(), MeasurementType::AppRef).unwrap();
+            self.updata_measurement(aux_entries_in_byte, MeasurementType::Global).unwrap();
+            self.is_app_loaded = true;
+            self.load_app_end = true
+        } else {
+            self.updata_measurement(aux_entries_in_byte, MeasurementType::Global).unwrap();
+        }
 
         Ok(())
     }
@@ -166,7 +222,16 @@ impl SoftwareMeasurementManager {
 
         let loadable = data.unwrap();
 
-        self.updata_measurement(loadable).unwrap();
+        // app retart
+        if self.is_app_loaded && !self.load_app_end{
+            self.updata_measurement(loadable, MeasurementType::Tmp).unwrap();
+        // during app first time loading
+        } else if !self.is_app_loaded && !self.load_app_end {
+            self.updata_measurement(loadable.clone(), MeasurementType::AppRef).unwrap();
+            self.updata_measurement(loadable, MeasurementType::Global).unwrap();
+        } else {
+            self.updata_measurement(loadable, MeasurementType::Global).unwrap();
+        }
     
         Ok(())
     }
@@ -204,13 +269,26 @@ impl SoftwareMeasurementManager {
         }
 
         let loadable = data.unwrap();
-        self.updata_measurement(loadable).unwrap();
+
+        // app retart
+        if self.is_app_loaded && !self.load_app_end{
+            self.updata_measurement(loadable, MeasurementType::Tmp).unwrap();            
+        // during app first time loading
+        } else if !self.is_app_loaded && !self.load_app_end {
+            self.updata_measurement(loadable.clone(), MeasurementType::AppRef).unwrap();
+            self.updata_measurement(loadable, MeasurementType::Global).unwrap();
+        // app first time loading is finished, 
+        } else {
+            self.updata_measurement(loadable, MeasurementType::Global).unwrap();
+            // compare the loadable with the hash in policy file
+        }
+
         Ok(())
     }
 
     pub fn get_measurement(&self) -> Result<String> {
 
-        Ok(self.measurement.clone())
+        Ok(self.global_measurement.clone())
     }
 
 }

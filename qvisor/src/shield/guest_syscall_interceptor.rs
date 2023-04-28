@@ -14,7 +14,7 @@ pub struct GuestSyscallInterceptor {
 }
 
 
-pub fn syscall_interceptor_init(_policy: BackEndSyscallInterceptorConfig, _application_pid: i32) -> Result<()> {
+pub fn syscall_interceptor_init(_policy: BackEndSyscallInterceptorConfig) -> Result<()>{
     Err(Error::NotSupport)
 }
 
@@ -22,6 +22,11 @@ pub fn syscall_interceptor_init(_policy: BackEndSyscallInterceptorConfig, _appli
 // TODO: ENABLE CONTEXT BASED SYSTEM CALL INTERCEPTOR
 pub fn is_guest_syscall_allowed(_current_pid: i32, _syscall_id: u64) -> bool {
     false
+}
+
+
+pub fn syscall_interceptor_set_app_pid(_application_pid: i32) -> Result<()> {
+    Err(Error::NotSupport)
 }
 
 

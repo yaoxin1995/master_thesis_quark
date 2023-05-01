@@ -400,6 +400,7 @@ pub fn Load(
         }
 
         debug!("secret injection finished, envv {:?}, args {:?}", envv, argv);
+        error!("app is goning to lauch {:?}", crate::qlib::kernel::Timestamp());
     }
     
     let usersp = SetupUserStack(

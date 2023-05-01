@@ -507,6 +507,10 @@ pub extern "C" fn rust_main(
 
     /***************** can't run any qcall before this point ************************************/
     {
+        if id == 0 {
+            error!("qkernel start {:?}", qlib::kernel::Timestamp());
+        }
+        
         let mut measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
         while !measurement_manager.is_some() {
             measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();

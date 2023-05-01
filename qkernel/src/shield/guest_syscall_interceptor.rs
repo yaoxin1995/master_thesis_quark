@@ -64,12 +64,6 @@ pub fn is_guest_syscall_allowed(current_pid: i32, syscall_id: u64) -> bool {
         return true;
     }
 
-    info!("is_guest_syscall_allowed enter");
-    debug!("is_guest_syscall_allowed enter");
-    error!("is_guest_syscall_allowed enter");
-    warn!("is_guest_syscall_allowed enter");
-
-
     match syscall_info_keeper.policy.mode {
         SystemCallInterceptorMode::ContextBased => {
             if current_pid != syscall_info_keeper.application_pid {

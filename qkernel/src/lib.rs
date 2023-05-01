@@ -495,6 +495,9 @@ pub extern "C" fn rust_main(
     if id == 0 {
         //error!("start main: {}", ::AllocatorPrint(10));
 
+        error!("qkernel start {:?}", qlib::kernel::Timestamp());
+    
+
         //ALLOCATOR.Print();
         IOWait();
     };

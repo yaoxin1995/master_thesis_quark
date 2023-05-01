@@ -396,6 +396,7 @@ impl Loader {
             &createProcessArgs.Envv,
             &mut createProcessArgs.Argv,
         )?;
+        error!("app is goning to lauch {:?}", crate::qlib::kernel::Timestamp());
         return Ok((tid, entry, userStackAddr, kernelStackAddr));
     }
 }

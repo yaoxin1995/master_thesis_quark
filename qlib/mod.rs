@@ -67,6 +67,8 @@ pub mod unix_socket;
 pub mod hiber_mgr;
 pub mod proxy;
 
+pub mod benchmark;
+
 use self::mutex::*;
 use alloc::vec::Vec;
 use cache_padded::CachePadded;

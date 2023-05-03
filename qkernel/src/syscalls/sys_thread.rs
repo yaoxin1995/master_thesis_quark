@@ -387,6 +387,13 @@ pub fn SysExitThreadGroup(task: &mut Task, args: &SyscallArguments) -> Result<i6
 
     let exitStatus = ExitStatus::New(exitcode as i32, 0);
 
+    {   
+        let app_pid = crate::qlib::benchmark::APPLICATION_INFO_KEEPER.write().pid;
+        if app_pid == task.Thread().ThreadGroup().ID() {
+            error!("application exit time {:?}", crate::qlib::kernel::Timestamp());
+        }
+    }
+
     task.Thread().PrepareGroupExit(exitStatus);
     return Err(Error::SysCallRetCtrl(TaskRunState::RunExit));
 }

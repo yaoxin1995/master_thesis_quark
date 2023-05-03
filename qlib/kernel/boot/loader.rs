@@ -298,6 +298,12 @@ impl Loader {
     }
 
     pub fn StartSubContainer(&self, processSpec: Process) -> Result<(i32, u64, u64, u64)> {
+
+        {
+            let mut application_info_keeper = crate::qlib::benchmark::APPLICATION_INFO_KEEPER.write();
+            application_info_keeper.init(&processSpec.Envs, processSpec.ID.clone()).unwrap();
+        }
+
         let task = Task::Current();
         let mut lockedLoader = self.Lock(task)?;
         let kernel = lockedLoader.kernel.clone();
@@ -396,7 +402,6 @@ impl Loader {
             &createProcessArgs.Envv,
             &mut createProcessArgs.Argv,
         )?;
-        error!("app is goning to lauch {:?}", crate::qlib::kernel::Timestamp());
         return Ok((tid, entry, userStackAddr, kernelStackAddr));
     }
 }

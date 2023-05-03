@@ -384,9 +384,20 @@ pub fn SysExit(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
 
 pub fn SysExitThreadGroup(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
     let exitcode = args.arg0 as i32;
+    
+    let pid;
+    {
+        pid = crate::shield::guest_syscall_interceptor::SYSCALLINTERCEPTOR.read().application_pid;
+    }
+
+    {
+        if pid == task.Thread().ThreadGroup().ID() {
+            let measurement = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.read().measured__cmp_in_bytes_after_app_launch;
+            error!("application exit time {:?}, measured component during runtime {:?}", crate::qlib::kernel::Timestamp(), measurement);
+        }
+    }
 
     let exitStatus = ExitStatus::New(exitcode as i32, 0);
-
     task.Thread().PrepareGroupExit(exitStatus);
     return Err(Error::SysCallRetCtrl(TaskRunState::RunExit));
 }

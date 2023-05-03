@@ -5,7 +5,7 @@ use qlib::common::*;
 
 
 lazy_static! {
-    static ref SYSCALLINTERCEPTOR:  RwLock<GuestSyscallInterceptor> = RwLock::new(GuestSyscallInterceptor::default());
+    pub static ref SYSCALLINTERCEPTOR:  RwLock<GuestSyscallInterceptor> = RwLock::new(GuestSyscallInterceptor::default());
 }
 
 
@@ -13,7 +13,7 @@ lazy_static! {
 #[derive(Debug, Default)]
 pub struct GuestSyscallInterceptor {
     policy: BackEndSyscallInterceptorConfig,
-    application_pid: i32,
+    pub application_pid: i32,
     is_init: bool,
 }
 

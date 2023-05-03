@@ -294,7 +294,6 @@ pub fn Load(
         app_loaded = app_info_keeper.is_application_loaded().unwrap();
     }
 
-
     info!("start load isSubContainer {:?}, file name {:?} is mongond {:?}, argv {:?}, envv {:?}", isSubContainer, filename, filename.eq("/usr/bin/mongod"), argv, envv);
 
     let (loaded, executable, tmpArgv) = LoadExecutable(task, filename, argv)?;
@@ -331,23 +330,23 @@ pub fn Load(
         software_measurement= measurement_manager.get_measurement().unwrap();
     }
 
-
-
-    info!("Load app_name {:?}, name {:?}, app_loaded {:?}, process id {:?}", app_name, name, app_loaded, task.Thread().ThreadGroup().ID());
+    debug!("Load app_name {:?}, name {:?}, app_loaded {:?}, process id {:?}", app_name, name, app_loaded, task.Thread().ThreadGroup().ID());
       
 
-    if app_name.eq(name){
+    if app_name.eq(name) {
         debug!("Load attestation begin, the software measurement is {:?}", software_measurement);
 
         // trigger remote attestation and secret provisioning when the kernel is going to launch application binary first time
         // skip if application is restarted
         if !app_loaded {
+            error!("remote attestation start {:?}", crate::qlib::kernel::Timestamp());
             let res = https_attestation_provisioning_cli::provisioning_http_client(task, &software_measurement);
             if res.is_err() {
                 info!("https_attestation_provisioning_cli::provisioning_http_client(task) got error {:?}", res);
                 return Err(res.err().unwrap());
             }
-    
+            error!("remote attestation finished {:?}", crate::qlib::kernel::Timestamp());
+            error!("secret injection start {:?}", crate::qlib::kernel::Timestamp());
             let (shield_policy, secret) = res.unwrap();
             // updata the policy
             policy_provisioning(&shield_policy).unwrap();
@@ -369,7 +368,6 @@ pub fn Load(
         guest_syscall_interceptor::syscall_interceptor_set_app_pid(task.Thread().ThreadGroup().ID()).unwrap();
 
         // file based secret injection
-
         let env_arg_secret;
         {
             let secret_injector = SECRET_KEEPER.read();
@@ -383,7 +381,6 @@ pub fn Load(
 
         // env based secret injection
         if env_arg_secret.is_some() {
-
             let cmd_envs = env_arg_secret.as_ref().unwrap();
             let mut env_secrets = cmd_envs.env_variables.clone();
             envv.append(&mut env_secrets);
@@ -391,7 +388,6 @@ pub fn Load(
             // app args based secret injection
             let mut arg_secrets = cmd_envs.cmd_arg.clone();
             argv.append(&mut arg_secrets);
-
         }
 
         {
@@ -399,8 +395,8 @@ pub fn Load(
             app_info_keeper.set_application_loaded().unwrap();
         }
 
-        debug!("secret injection finished, envv {:?}, args {:?}", envv, argv);
-        error!("app is goning to lauch {:?}", crate::qlib::kernel::Timestamp());
+        error!("secret injection finished, envv {:?}, args {:?} time {:?}", envv, argv, crate::qlib::kernel::Timestamp());
+        error!("application start {:?}", crate::qlib::kernel::Timestamp());
     }
     
     let usersp = SetupUserStack(

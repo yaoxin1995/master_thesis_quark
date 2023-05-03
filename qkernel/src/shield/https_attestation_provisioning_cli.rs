@@ -447,9 +447,11 @@ impl ShieldProvisioningHttpSClient {
         {
             let mut attester = GUEST_SEV_DEV.write();
 
+            error!("generate_evidence start timestamp {:?}", crate::qlib::kernel::Timestamp());
             tee_evidence = attester
                 .get_report(ehd)
                 .map_err(|e| Error::Common(format!("generate_evidence get report failed: {:?}", e)))?;
+            error!("generate_evidence end timestamp {:?}", crate::qlib::kernel::Timestamp());
         }
         
         Ok(Attestation {

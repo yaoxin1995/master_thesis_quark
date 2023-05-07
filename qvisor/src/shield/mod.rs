@@ -6,7 +6,7 @@ pub mod sev_guest;
 pub mod secret_injection;
 pub mod software_measurement_manager;
 pub mod guest_syscall_interceptor;
-
+use crate::qlib::kernel::task::Task;
 use spin::rwlock::RwLock;
 use crate::qlib::shield_policy::*;
 use crate::qlib::common::*;
@@ -59,4 +59,9 @@ impl ApplicationInfoKeeper {
 
 pub fn policy_provisioning (_policy: &KbsPolicy) -> Result<()> {
     Err(Error::NotSupport)
+}
+
+
+pub fn shiled_clock_get_time(_task: &mut Task) -> i64 {
+    return -1;
 }

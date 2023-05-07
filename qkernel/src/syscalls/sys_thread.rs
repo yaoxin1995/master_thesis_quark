@@ -393,7 +393,7 @@ pub fn SysExitThreadGroup(task: &mut Task, args: &SyscallArguments) -> Result<i6
     {
         if pid == task.Thread().ThreadGroup().ID() {
             let measurement = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.read().measured__cmp_in_bytes_after_app_launch;
-            error!("application exit time {:?}, measured component during runtime {:?}", crate::qlib::kernel::Timestamp(), measurement);
+            error!("{:?} application exit measured component during runtime {:?}", crate::shield::shiled_clock_get_time(task), measurement);
         }
     }
 

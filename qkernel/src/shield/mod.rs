@@ -25,6 +25,7 @@ use spin::rwlock::RwLock;
 use alloc::string::ToString;
 use core::convert::TryInto;
 use spin::rwlock::RwLockWriteGuard;
+use Task;
 
 lazy_static! {
     pub static ref APPLICATION_INFO_KEEPER:  RwLock<ApplicationInfoKeeper> = RwLock::new(ApplicationInfoKeeper::default());
@@ -307,3 +308,17 @@ pub fn hash_chunks(chunks: Vec<Vec<u8>>) -> String {
 
 	base64
 } 
+
+
+pub fn shiled_clock_get_time(task: &mut Task) -> i64 {
+
+    let clockID = crate::qlib::linux::time::CLOCK_MONOTONIC;
+
+    let clock = crate::syscalls::sys_time::GetClock(task, clockID).unwrap();
+
+
+    let ns = clock.Now().Nanoseconds();
+
+
+    return ns;
+}

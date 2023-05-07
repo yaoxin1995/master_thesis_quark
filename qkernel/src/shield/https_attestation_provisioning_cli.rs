@@ -378,10 +378,10 @@ impl ShieldProvisioningHttpSClient {
      * }
      * To prevent relay attack, we put the hash of the nonce we got from http auth to the user data field of attestation report
      */
-    fn prepair_post_attest_http_req(&self, software_maasurement: &str) -> Result<String> {
+    fn prepair_post_attest_http_req(&self, software_maasurement: &str, task: &mut Task) -> Result<String> {
         
 
-        let tee_evidence = self.generate_evidence(software_maasurement)?;
+        let tee_evidence = self.generate_evidence(software_maasurement, task)?;
     
         let serialized_req = serde_json::to_string(&tee_evidence).unwrap();
 
@@ -422,7 +422,7 @@ impl ShieldProvisioningHttpSClient {
     }
 
 
-    fn generate_evidence(&self, software_maasurement: &str) -> Result<Attestation> {
+    fn generate_evidence(&self, software_maasurement: &str, task: &mut Task) -> Result<Attestation> {
         let key = self
             .tee_key
             .as_ref()
@@ -447,11 +447,11 @@ impl ShieldProvisioningHttpSClient {
         {
             let mut attester = GUEST_SEV_DEV.write();
 
-            error!("generate_evidence start timestamp {:?}", crate::qlib::kernel::Timestamp());
+            error!("{:?} generate_evidence start", crate::shield::shiled_clock_get_time(task));
             tee_evidence = attester
                 .get_report(ehd)
                 .map_err(|e| Error::Common(format!("generate_evidence get report failed: {:?}", e)))?;
-            error!("generate_evidence end timestamp {:?}", crate::qlib::kernel::Timestamp());
+            error!("{:?} generate_evidence end timestamp",  crate::shield::shiled_clock_get_time(task));
         }
         
         Ok(Attestation {
@@ -1074,7 +1074,7 @@ fn get_kbs_signing_key(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Ae
 
 
 
-pub fn provisioning_http_client(task: &Task, software_maasurement: &str) -> Result<(KbsPolicy, KbsSecrets)> {
+pub fn provisioning_http_client(task: &mut Task, software_maasurement: &str) -> Result<(KbsPolicy, KbsSecrets)> {
 
     log::debug!("provisioning_http_client start");
 
@@ -1110,7 +1110,7 @@ pub fn provisioning_http_client(task: &Task, software_maasurement: &str) -> Resu
 
     {
         // attestation phase 1.2a: sent attest req
-        let post_http_attest_req = client.prepair_post_attest_http_req(software_maasurement)
+        let post_http_attest_req = client.prepair_post_attest_http_req(software_maasurement, task)
             .map_err(|e| Error::Common(format!("provisioning_http_client, attestation phase 1.2a: sent attest req to sm get error {:?}", e)))?;
 
         let mut rx_buf = [0; 4096];

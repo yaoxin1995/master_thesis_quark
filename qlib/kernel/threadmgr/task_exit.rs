@@ -1009,6 +1009,20 @@ impl Thread {
                 " sending exit notification for CID:{}, execID:{}",
                 &cid, &execId
             );
+
+            let app_cid;
+
+            {
+                let application_info_keeper = crate::shield::APPLICATION_INFO_KEEPER.read();
+                app_cid = application_info_keeper.cid.clone();
+            }
+
+            if app_cid.eq(&cid) == false {
+                let task = Task::Current();
+                error!("{:?} sandbox exit", crate::shield::shiled_clock_get_time(task));
+            }
+
+
             WriteWaitAllResponse(cid.clone(), execId.clone(), tg.ExitStatus().Status() as i32);
             let curr = Task::Current();
             LOADER

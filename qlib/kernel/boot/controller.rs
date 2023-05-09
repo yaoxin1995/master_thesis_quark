@@ -45,6 +45,7 @@ use crate::shield::{terminal_shield::*, exec_shield::*};
 
 pub fn ControllerProcessHandler() -> Result<()> {
     let task = Task::Current();
+    error!("{:?} sandbox start", crate::shield::shiled_clock_get_time(task));
     loop {
         let fd = IOURING.SyncAccept(task, SHARESPACE.controlSock);
         info!("Accept next task: get signal");

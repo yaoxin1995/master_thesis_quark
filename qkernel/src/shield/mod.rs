@@ -47,7 +47,7 @@ pub struct ApplicationInfoKeeper {
     kbs_cmd_env_based_secret_path: Option<String>,
     kbs_file_based_secret_paths: Vec<String>,
     kbs_policy_path: Option<String>,
-    cid: String,
+    pub cid: String,
 }
 
 

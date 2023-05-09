@@ -21,6 +21,7 @@ pub struct ApplicationInfoKeeper {
     is_launched: bool,
     kbs_ip:  [u8;4],  // key: file name, value: secret
     kbs_port: u16,
+    pub cid: String
 }
 
 

@@ -293,7 +293,7 @@ pub fn Load(
     let app_name;
     let app_loaded;
     {
-        let mut app_info_keeper = crate::qlib::benchmark::APPLICATION_INFO_KEEPER.write();
+        let mut app_info_keeper = crate::benchmark::APPLICATION_INFO_KEEPER.write();
 
         app_name = app_info_keeper.get_application_name().unwrap().to_string();
         app_loaded = app_info_keeper.is_application_loaded().unwrap();
@@ -301,7 +301,7 @@ pub fn Load(
         if app_name.eq(name) {
             app_info_keeper.set_application_loaded().unwrap();
             app_info_keeper.pid = task.Thread().ThreadGroup().ID();
-            error!("application start {:?}", crate::qlib::kernel::Timestamp());
+            error!("{:?} application start", crate::benchmark::shiled_clock_get_time(task));
         }
     }
 

@@ -69,6 +69,7 @@ mod interrupt;
 pub mod kernel_def;
 pub mod rdma_def;
 mod syscalls;
+mod benchmark;
 
 use self::kernel_def::*;
 use self::interrupt::virtualization_handler;
@@ -494,10 +495,6 @@ pub extern "C" fn rust_main(
 
     if id == 0 {
         //error!("start main: {}", ::AllocatorPrint(10));
-
-        error!("qkernel start {:?}", qlib::kernel::Timestamp());
-    
-
         //ALLOCATOR.Print();
         IOWait();
     };

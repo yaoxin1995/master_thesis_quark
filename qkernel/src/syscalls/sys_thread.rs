@@ -388,9 +388,9 @@ pub fn SysExitThreadGroup(task: &mut Task, args: &SyscallArguments) -> Result<i6
     let exitStatus = ExitStatus::New(exitcode as i32, 0);
 
     {   
-        let app_pid = crate::qlib::benchmark::APPLICATION_INFO_KEEPER.write().pid;
+        let app_pid = crate::benchmark::APPLICATION_INFO_KEEPER.write().pid;
         if app_pid == task.Thread().ThreadGroup().ID() {
-            error!("application exit time {:?}", crate::qlib::kernel::Timestamp());
+            error!("{:?} application exit measured component during runtime {:?}", crate::benchmark::shiled_clock_get_time(task), 0);
         }
     }
 

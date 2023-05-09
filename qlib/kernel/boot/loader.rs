@@ -300,7 +300,7 @@ impl Loader {
     pub fn StartSubContainer(&self, processSpec: Process) -> Result<(i32, u64, u64, u64)> {
 
         {
-            let mut application_info_keeper = crate::qlib::benchmark::APPLICATION_INFO_KEEPER.write();
+            let mut application_info_keeper = crate::benchmark::APPLICATION_INFO_KEEPER.write();
             application_info_keeper.init(&processSpec.Envs, processSpec.ID.clone()).unwrap();
         }
 

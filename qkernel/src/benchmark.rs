@@ -4,7 +4,7 @@ use crate::qlib::common::*;
 use spin::rwlock::RwLock;
 use alloc::string::ToString;
 use core::convert::TryInto;
-
+use Task;
 lazy_static! {
     pub static ref APPLICATION_INFO_KEEPER:  RwLock<ApplicationInfoKeeper> = RwLock::new(ApplicationInfoKeeper::default());
 }
@@ -68,3 +68,16 @@ impl ApplicationInfoKeeper {
     }
 }
 
+
+pub fn shiled_clock_get_time(task: &mut Task) -> i64 {
+
+    let clockID = crate::qlib::linux::time::CLOCK_MONOTONIC;
+
+    let clock = crate::syscalls::sys_time::GetClock(task, clockID).unwrap();
+
+
+    let ns = clock.Now().Nanoseconds();
+
+
+    return ns;
+}

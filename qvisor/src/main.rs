@@ -74,6 +74,7 @@ pub mod ucall;
 pub mod unix_socket_def;
 pub mod util;
 mod vmspace;
+mod benchmark;
 
 use alloc::sync::Arc;
 use lazy_static::lazy_static;

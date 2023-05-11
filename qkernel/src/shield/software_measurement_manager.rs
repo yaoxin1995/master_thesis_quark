@@ -49,8 +49,19 @@ pub struct SoftwareMeasurementManager {
     // if the tmp_measurement doesn't match the  app_ref_measurement, panic!!! 
     tmp_measurement : String,
     
-    pub measured_cmp_in_bytes_before_app_launch: u64,
-    pub measured__cmp_in_bytes_after_app_launch: u64,
+    pub measured_executable_memory_mapping_in_bytes_before_app_launch: u64,
+    pub measured_shared_lib_memory_mapping_in_bytes_before_app_launch: u64,
+
+    pub measured_process_spec_before_app_launch:u64,
+
+    pub measured_qkernel_args_in_bytes_before_app_launch:u64,
+
+    pub measured_stack_in_bytes_before_app_launch:u64,
+
+
+    pub measured_executable_memory_mapping_in_bytes_after_app_launch: u64,
+    pub measured_shared_lib_memory_mapping_in_bytes_after_app_launch: u64,
+    pub measured_stack_in_bytes_after_app_launch:u64,
 }
 
 
@@ -109,6 +120,8 @@ impl SoftwareMeasurementManager {
 
     pub fn measure_process_spec(&mut self, proc_spec: &Process) -> Result<()> {
 
+        let start = crate::shield::shiled_clock_get_time();
+
         self.load_app_end = false;
         self.tmp_measurement = String::default();
 
@@ -120,7 +133,7 @@ impl SoftwareMeasurementManager {
 
         let proccess_spec_vec_in_bytes = proccess_spec_vec.unwrap();
 
-        self.measured_cmp_in_bytes_before_app_launch = self.measured_cmp_in_bytes_before_app_launch + proccess_spec_vec_in_bytes.len() as u64;
+        self.measured_process_spec_before_app_launch = self.measured_process_spec_before_app_launch + proccess_spec_vec_in_bytes.len() as u64;
 
         if self.is_app_loaded {
             self.updata_measurement(proccess_spec_vec_in_bytes, MeasurementType::Tmp).unwrap();
@@ -128,6 +141,12 @@ impl SoftwareMeasurementManager {
             self.updata_measurement(proccess_spec_vec_in_bytes.clone(), MeasurementType::Global).unwrap();
             self.updata_measurement(proccess_spec_vec_in_bytes, MeasurementType::AppRef).unwrap();
         }
+
+        let end = crate::shield::shiled_clock_get_time();
+
+        error!("{:?} measure_process_spec", end - start);
+
+
         Ok(())
     }
 
@@ -146,6 +165,9 @@ impl SoftwareMeasurementManager {
 
     pub fn measure_qkernel_argument (&mut self, heapStart: u64, shareSpaceAddr: u64, id: u64, svdsoParamAddr: u64, vcpuCnt: u64, autoStart: bool) ->  Result<()> {
 
+        
+        let start = crate::shield::shiled_clock_get_time();
+
         let qkernel_args = QKernelArgs {
             heapStart: heapStart,
             shareSpaceAddr: shareSpaceAddr,
@@ -158,9 +180,14 @@ impl SoftwareMeasurementManager {
         let kernel_args_in_bytes = serde_json::to_vec(&qkernel_args)
             .map_err(|e| Error::Common(format!("measure_qkernel_argument, serde_json::to_vec(&qkernel_args) get error {:?}", e)))?;
 
-        self.measured_cmp_in_bytes_before_app_launch = self.measured_cmp_in_bytes_before_app_launch + kernel_args_in_bytes.len() as u64;
+        self.measured_qkernel_args_in_bytes_before_app_launch = self.measured_qkernel_args_in_bytes_before_app_launch + kernel_args_in_bytes.len() as u64;
 
         self.updata_measurement(kernel_args_in_bytes, MeasurementType::Global).unwrap();
+
+        let end = crate::shield::shiled_clock_get_time();
+
+        error!("{:?} measure_qkernel_argument", end - start);
+
 
         Ok(())
     }
@@ -170,6 +197,8 @@ impl SoftwareMeasurementManager {
      *  Other data like, envv, argv, are measuared by `measure_process_spec`
      */
     pub fn measure_stack(&mut self, auxv: Vec<AuxEntry>, is_app: bool, task: &mut Task) -> Result<()> {
+
+        let start = crate::shield::shiled_clock_get_time();
 
         let mut aux_entries_in_byte = Vec::new();
         for entry in auxv {
@@ -197,26 +226,35 @@ impl SoftwareMeasurementManager {
             panic!("tmp_measurement doesn't match the app_ref_measurement, k8s tries to restart application using bad bainary")
         // during app first time loading
         } else if !self.is_app_loaded && !self.load_app_end && !is_app {
-            self.measured_cmp_in_bytes_before_app_launch = self.measured_cmp_in_bytes_before_app_launch + aux_entries_in_byte.len() as u64;
+            self.measured_stack_in_bytes_before_app_launch = self.measured_stack_in_bytes_before_app_launch + aux_entries_in_byte.len() as u64;
             self.updata_measurement(aux_entries_in_byte.clone(), MeasurementType::AppRef).unwrap();
             self.updata_measurement(aux_entries_in_byte, MeasurementType::Global).unwrap();
         // app first time loading is finished
         } else if !self.is_app_loaded && !self.load_app_end && is_app{
-            self.measured_cmp_in_bytes_before_app_launch = self.measured_cmp_in_bytes_before_app_launch + aux_entries_in_byte.len() as u64;
-            error!("measured_cmp_in_bytes_before_app_launch {:?}", self.measured_cmp_in_bytes_before_app_launch);
+            self.measured_stack_in_bytes_before_app_launch = self.measured_stack_in_bytes_before_app_launch + aux_entries_in_byte.len() as u64;
+            error!("measured_executable_memory_mapping_in_bytes_before_app_launch {:?}", self.measured_executable_memory_mapping_in_bytes_before_app_launch);
+            error!("measured_shared_lib_memory_mapping_in_bytes_before_app_launch {:?}", self.measured_shared_lib_memory_mapping_in_bytes_before_app_launch);
+            error!("measured_process_spec_before_app_launch {:?}", self.measured_process_spec_before_app_launch);
+            error!("measured_qkernel_args_in_bytes_before_app_launch {:?}", self.measured_qkernel_args_in_bytes_before_app_launch);
+            error!("measured_stack_in_bytes_before_app_launch {:?}", self.measured_stack_in_bytes_before_app_launch);
             self.updata_measurement(aux_entries_in_byte.clone(), MeasurementType::AppRef).unwrap();
             self.updata_measurement(aux_entries_in_byte, MeasurementType::Global).unwrap();
             self.is_app_loaded = true;
             self.load_app_end = true
         } else {
-            self.measured__cmp_in_bytes_after_app_launch = self.measured__cmp_in_bytes_after_app_launch + aux_entries_in_byte.len() as u64;
+            self.measured_stack_in_bytes_after_app_launch = self.measured_stack_in_bytes_after_app_launch + aux_entries_in_byte.len() as u64;
             self.updata_measurement(aux_entries_in_byte, MeasurementType::Global).unwrap();
         }
 
+        let end = crate::shield::shiled_clock_get_time();
+        error!("{:?} measure_stack", end - start);
         Ok(())
     }
 
-    pub fn measure_elf_loadable_segment(&mut self, load_segment_virtual_addr: u64, load_segment_size: u64, offset: u64, task: &Task) -> Result<()> {
+    pub fn measure_elf_loadable_segment(&mut self, load_segment_virtual_addr: u64, load_segment_size: u64, offset: u64, task: &mut Task) -> Result<()> {
+
+        
+        let start = crate::shield::shiled_clock_get_time();
 
         let startMem = Addr(load_segment_virtual_addr).RoundDown().unwrap();
         let endMem = Addr(load_segment_virtual_addr)
@@ -238,18 +276,22 @@ impl SoftwareMeasurementManager {
             self.updata_measurement(loadable, MeasurementType::Tmp).unwrap();
         // during app first time loading
         } else if !self.is_app_loaded && !self.load_app_end {
-            self.measured_cmp_in_bytes_before_app_launch = self.measured_cmp_in_bytes_before_app_launch + loadable.len() as u64;
+            self.measured_executable_memory_mapping_in_bytes_before_app_launch = self.measured_executable_memory_mapping_in_bytes_before_app_launch + loadable.len() as u64;
             self.updata_measurement(loadable.clone(), MeasurementType::AppRef).unwrap();
             self.updata_measurement(loadable, MeasurementType::Global).unwrap();
         } else {
-            self.measured__cmp_in_bytes_after_app_launch = self.measured__cmp_in_bytes_after_app_launch + loadable.len() as u64;
+            self.measured_executable_memory_mapping_in_bytes_after_app_launch = self.measured_executable_memory_mapping_in_bytes_after_app_launch + loadable.len() as u64;
             self.updata_measurement(loadable, MeasurementType::Global).unwrap();
         }
     
+        let end = crate::shield::shiled_clock_get_time();
+        error!("{:?} measure_elf_loadable_segment", end - start);
         Ok(())
     }
 
     pub fn measure_shared_lib(&mut self, start_addr: u64, file: &File, task: &mut Task, fixed: bool, mmmap_len: u64, file_name: &str) -> Result<()> {
+
+        let start = crate::shield::shiled_clock_get_time();
 
         let uattr = file.UnstableAttr(task)?;
         let real_mmap_size = if uattr.Size as u64 > mmmap_len {
@@ -283,17 +325,19 @@ impl SoftwareMeasurementManager {
             self.updata_measurement(loadable, MeasurementType::Tmp).unwrap();            
         // during app first time loading
         } else if !self.is_app_loaded && !self.load_app_end {
-            self.measured_cmp_in_bytes_before_app_launch = self.measured_cmp_in_bytes_before_app_launch + loadable.len() as u64;
+            self.measured_shared_lib_memory_mapping_in_bytes_before_app_launch = self.measured_shared_lib_memory_mapping_in_bytes_before_app_launch + loadable.len() as u64;
             self.updata_measurement(loadable.clone(), MeasurementType::AppRef).unwrap();
             self.updata_measurement(loadable, MeasurementType::Global).unwrap();
             error!("shared libs loaded before application lauched, name {:?}", file_name);
         } else {
-            self.measured__cmp_in_bytes_after_app_launch = self.measured__cmp_in_bytes_after_app_launch + loadable.len() as u64;
+            self.measured_shared_lib_memory_mapping_in_bytes_after_app_launch = self.measured_shared_lib_memory_mapping_in_bytes_after_app_launch + loadable.len() as u64;
             self.updata_measurement(loadable, MeasurementType::Global).unwrap();
             // compare the loadable with the hash in policy file
             error!("shared libs loaded after application lauched, name {:?}", file_name);
         }
 
+        let end = crate::shield::shiled_clock_get_time();
+        error!("{:?} measure_shared_lib", end - start);
         Ok(())
     }
 

@@ -447,11 +447,11 @@ impl ShieldProvisioningHttpSClient {
         {
             let mut attester = GUEST_SEV_DEV.write();
 
-            error!("{:?} generate_evidence start", crate::shield::shiled_clock_get_time(task));
+            error!("{:?} generate_evidence start", crate::shield::shiled_clock_get_time());
             tee_evidence = attester
                 .get_report(ehd)
                 .map_err(|e| Error::Common(format!("generate_evidence get report failed: {:?}", e)))?;
-            error!("{:?} generate_evidence end timestamp",  crate::shield::shiled_clock_get_time(task));
+            error!("{:?} generate_evidence end timestamp",  crate::shield::shiled_clock_get_time());
         }
         
         Ok(Attestation {

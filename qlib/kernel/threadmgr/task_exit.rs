@@ -1018,8 +1018,7 @@ impl Thread {
             }
 
             if app_cid.eq(&cid) == false {
-                let task = Task::Current();
-                error!("{:?} sandbox exit", crate::shield::shiled_clock_get_time(task));
+                error!("{:?} sandbox exit", crate::shield::shiled_clock_get_time());
             }
 
 

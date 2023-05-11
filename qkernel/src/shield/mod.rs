@@ -310,7 +310,9 @@ pub fn hash_chunks(chunks: Vec<Vec<u8>>) -> String {
 } 
 
 
-pub fn shiled_clock_get_time(task: &mut Task) -> i64 {
+pub fn shiled_clock_get_time() -> i64 {
+
+    let mut task = Task::Current();
 
     let clockID = crate::qlib::linux::time::CLOCK_MONOTONIC;
 

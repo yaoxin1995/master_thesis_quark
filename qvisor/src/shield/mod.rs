@@ -63,6 +63,6 @@ pub fn policy_provisioning (_policy: &KbsPolicy) -> Result<()> {
 }
 
 
-pub fn shiled_clock_get_time(_task: &mut Task) -> i64 {
+pub fn shiled_clock_get_time() -> i64 {
     return -1;
 }

@@ -339,14 +339,14 @@ pub fn Load(
         // trigger remote attestation and secret provisioning when the kernel is going to launch application binary first time
         // skip if application is restarted
         if !app_loaded {
-            error!("{:?} remote attestation start", crate::shield::shiled_clock_get_time(task));
+            error!("{:?} remote attestation start", crate::shield::shiled_clock_get_time());
             let res = https_attestation_provisioning_cli::provisioning_http_client(task, &software_measurement);
             if res.is_err() {
                 info!("https_attestation_provisioning_cli::provisioning_http_client(task) got error {:?}", res);
                 return Err(res.err().unwrap());
             }
-            error!("{:?} remote attestation finished", crate::shield::shiled_clock_get_time(task));
-            error!("{:?} secret injection start", crate::shield::shiled_clock_get_time(task));
+            error!("{:?} remote attestation finished", crate::shield::shiled_clock_get_time());
+            error!("{:?} secret injection start", crate::shield::shiled_clock_get_time());
             let (shield_policy, secret) = res.unwrap();
             // updata the policy
             policy_provisioning(&shield_policy).unwrap();
@@ -395,8 +395,8 @@ pub fn Load(
             app_info_keeper.set_application_loaded().unwrap();
         }
 
-        error!("{:?} secret injection finished", crate::shield::shiled_clock_get_time(task));
-        error!("{:?} application start", crate::shield::shiled_clock_get_time(task));
+        error!("{:?} secret injection finished", crate::shield::shiled_clock_get_time());
+        error!("{:?} application start", crate::shield::shiled_clock_get_time());
     }
     
     let usersp = SetupUserStack(

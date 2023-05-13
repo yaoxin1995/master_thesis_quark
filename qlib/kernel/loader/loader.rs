@@ -394,7 +394,7 @@ pub fn Load(
             let mut  app_info_keeper = APPLICATION_INFO_KEEPER.write();
             app_info_keeper.set_application_loaded().unwrap();
         }
-
+        error!("{:?} app pid", task.Thread().ThreadGroup().ID());
         error!("{:?} secret injection finished", crate::shield::shiled_clock_get_time());
         error!("{:?} application start", crate::shield::shiled_clock_get_time());
     }

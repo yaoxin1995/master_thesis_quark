@@ -30,6 +30,19 @@ pub struct SoftwareMeasurementManager {
     is_app_loaded: bool,
     //  a base64 of the sha512
     measurement : String,
+    pub measured_executable_memory_mapping_in_bytes_before_app_launch: u64,
+    pub measured_shared_lib_memory_mapping_in_bytes_before_app_launch: u64,
+
+    pub measured_process_spec_before_app_launch:u64,
+
+    pub measured_qkernel_args_in_bytes_before_app_launch:u64,
+
+    pub measured_stack_in_bytes_before_app_launch:u64,
+
+
+    pub measured_executable_memory_mapping_in_bytes_after_app_launch: u64,
+    pub measured_shared_lib_memory_mapping_in_bytes_after_app_launch: u64,
+    pub measured_stack_in_bytes_after_app_launch:u64,
 }
 
 impl SoftwareMeasurementManager {

@@ -247,6 +247,24 @@ impl Thread {
     //
     // Preconditions: The caller must be running on the task goroutine.
     pub fn PrepareGroupExit(&self, es: ExitStatus) {
+
+        let pid;
+        {
+            pid = crate::shield::guest_syscall_interceptor::SYSCALLINTERCEPTOR.read().application_pid;
+        }
+    
+        {   
+            let task = Task::Current();
+            error!("current pid {:?} app pid {:?}", task.Thread().ThreadGroup().ID(), pid);
+            if pid == task.Thread().ThreadGroup().ID() {
+                let lib_measurement = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.read().measured_shared_lib_memory_mapping_in_bytes_after_app_launch;
+                let exe_measurement = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.read().measured_executable_memory_mapping_in_bytes_after_app_launch;
+                let stack_measurement = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.read().measured_stack_in_bytes_after_app_launch;
+                error!("{:?} application exit measured component during runtime lib_measurement {:?} stack_measurement {}  excurtable_measurement {:?}", 
+                            crate::shield::shiled_clock_get_time(), lib_measurement, stack_measurement, exe_measurement);
+            }
+        }
+
         let tg = self.lock().tg.clone();
         let lock = tg.lock().signalLock.clone();
         let _s = lock.lock();

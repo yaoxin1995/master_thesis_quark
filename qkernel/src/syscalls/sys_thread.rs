@@ -385,21 +385,6 @@ pub fn SysExit(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
 pub fn SysExitThreadGroup(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
     let exitcode = args.arg0 as i32;
     
-    let pid;
-    {
-        pid = crate::shield::guest_syscall_interceptor::SYSCALLINTERCEPTOR.read().application_pid;
-    }
-
-    {
-        if pid == task.Thread().ThreadGroup().ID() {
-            let lib_measurement = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.read().measured_shared_lib_memory_mapping_in_bytes_after_app_launch;
-            let exe_measurement = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.read().measured_executable_memory_mapping_in_bytes_after_app_launch;
-            let stack_measurement = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.read().measured_stack_in_bytes_after_app_launch;
-            error!("{:?} application exit measured component during runtime lib_measurement {:?} stack_measurement {}  excurtable_measurement {:?}", 
-                        crate::shield::shiled_clock_get_time(), lib_measurement, stack_measurement, exe_measurement);
-        }
-    }
-
     let exitStatus = ExitStatus::New(exitcode as i32, 0);
     task.Thread().PrepareGroupExit(exitStatus);
     return Err(Error::SysCallRetCtrl(TaskRunState::RunExit));

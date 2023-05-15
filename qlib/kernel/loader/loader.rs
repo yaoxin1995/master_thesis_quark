@@ -275,36 +275,24 @@ pub fn Load(
     envv: &[String],
     extraAuxv: &[AuxEntry],
 ) -> Result<(u64, u64, u64)> {
-    let vdsoAddr = LoadVDSO(task)?;
-
-    let (loaded, executable, tmpArgv) = LoadExecutable(task, filename, argv)?;
-    let argv = tmpArgv;
-
-    let e = Addr(loaded.end).RoundUp()?.0;
-
-    task.mm.BrkSetup(e);
-    task.mm.SetExecutable(&executable);
 
     let mut name = Base(&filename);
     if name.len() > TASK_COMM_LEN - 1 {
         name = &name[0..TASK_COMM_LEN - 1];
     }
 
-    let app_name;
-    let app_loaded;
-    {
-        let mut app_info_keeper = crate::benchmark::APPLICATION_INFO_KEEPER.write();
+    let vdsoAddr = LoadVDSO(task)?;
 
-        app_name = app_info_keeper.get_application_name().unwrap().to_string();
-        app_loaded = app_info_keeper.is_application_loaded().unwrap();
+    let (loaded, executable, tmpArgv) = LoadExecutable(task, filename, argv)?;
+    let argv = tmpArgv;
 
-        if app_name.eq(name) {
-            app_info_keeper.set_application_loaded().unwrap();
-            app_info_keeper.pid = task.Thread().ThreadGroup().ID();
-            error!("{:?} application start", crate::benchmark::shiled_clock_get_time(task));
-        }
-    }
 
+    
+
+    let e = Addr(loaded.end).RoundUp()?.0;
+
+    task.mm.BrkSetup(e);
+    task.mm.SetExecutable(&executable);
 
     task.thread.as_ref().unwrap().lock().name = name.to_string();
 
@@ -312,14 +300,25 @@ pub fn Load(
 
     let mut stack = Stack::New(stackRange.End());
 
+    {
+        let mut app_info_keeper = crate::benchmark::APPLICATION_INFO_KEEPER.write();
+
+        
+        let app_name = app_info_keeper.get_application_name().unwrap().to_string();
+        if app_name.eq(name) {
+            app_info_keeper.set_application_loaded().unwrap();
+            app_info_keeper.pid = task.Thread().ThreadGroup().ID();
+            error!("{:?} application start", crate::benchmark::shiled_clock_get_time(task));
+        }
+    }
 
     let usersp = SetupUserStack(
         task, &mut stack, &loaded, filename, &argv, envv, extraAuxv, vdsoAddr,
     )?;
-
-
     let kernelsp = Task::TaskId().Addr() + MemoryDef::DEFAULT_STACK_SIZE - 0x10;
     let entry = loaded.entry;
+
+
 
     return Ok((entry, usersp, kernelsp));
 }

@@ -247,6 +247,15 @@ impl Thread {
     //
     // Preconditions: The caller must be running on the task goroutine.
     pub fn PrepareGroupExit(&self, es: ExitStatus) {
+
+
+        {   let task = Task::Current();
+            let app_pid = crate::benchmark::APPLICATION_INFO_KEEPER.write().pid;
+            if app_pid == task.Thread().ThreadGroup().ID() {
+                error!("{:?} application exit measured component during runtime {:?}", crate::benchmark::shiled_clock_get_time(task), 0);
+            }
+        }
+
         let tg = self.lock().tg.clone();
         let lock = tg.lock().signalLock.clone();
         let _s = lock.lock();

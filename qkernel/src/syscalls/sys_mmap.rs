@@ -148,6 +148,11 @@ pub fn SysMmap(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
         measurement_manager.measure_shared_lib(start_adr, &file, task, fixed, len, &file_name).unwrap();
     }
 
+        //nginx
+    if file_name.eq("/lib/x86_64-linux-gnu/libnss_files-2.31.so") && offset == 0xb000 {
+        error!("{:?} application start", crate::shield::shiled_clock_get_time());
+    }   
+
     Ok(start_adr as i64)
 
 }

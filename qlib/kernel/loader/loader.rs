@@ -396,7 +396,6 @@ pub fn Load(
         }
         error!("{:?} app pid", task.Thread().ThreadGroup().ID());
         error!("{:?} secret injection finished", crate::shield::shiled_clock_get_time());
-        error!("{:?} application start", crate::shield::shiled_clock_get_time());
     }
     
     let usersp = SetupUserStack(

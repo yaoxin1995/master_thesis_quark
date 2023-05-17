@@ -137,14 +137,14 @@ pub fn SysMmap(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
 
     debug!("SysMmap addr {:x}, len {:x}, prot {:?}, flags {:?}, fd {:?}, offset {:?}, fixed {:?}, private {:?}, shared: {:?}, anon {:?} file_name {:?}, is_shared_lib {:?}", addr, len, prot, flags, fd, offset, fixed, private, shared, anon, file_name, is_shared_lib);
 
-    //nginx
-    if file_name.eq("/lib/x86_64-linux-gnu/libnss_files-2.31.so") && offset == 0xb000 {
-        error!("{:?} application start", crate::benchmark::shiled_clock_get_time(task));
-    }     
-    // //redis
-    // if file_name.eq("/lib/x86_64-linux-gnu/libc-2.31.so") && offset == 0x1c9000 {
+    // //nginx
+    // if file_name.eq("/lib/x86_64-linux-gnu/libnss_files-2.31.so") && offset == 0xb000 {
     //     error!("{:?} application start", crate::benchmark::shiled_clock_get_time(task));
-    // }
+    // }     
+    //redis
+    if file_name.eq("/lib/x86_64-linux-gnu/libc-2.31.so") && offset == 0x1c9000 {
+        error!("{:?} application start", crate::benchmark::shiled_clock_get_time(task));
+    }
 
     Ok(start_adr as i64)
 

@@ -300,18 +300,6 @@ pub fn Load(
 
     let mut stack = Stack::New(stackRange.End());
 
-    // {
-    //     let mut app_info_keeper = crate::benchmark::APPLICATION_INFO_KEEPER.write();
-
-        
-    //     let app_name = app_info_keeper.get_application_name().unwrap().to_string();
-    //     if app_name.eq(name) {
-    //         app_info_keeper.set_application_loaded().unwrap();
-    //         app_info_keeper.pid = task.Thread().ThreadGroup().ID();
-    //         error!("{:?} application start", crate::benchmark::shiled_clock_get_time(task));
-    //     }
-    // }
-
     let usersp = SetupUserStack(
         task, &mut stack, &loaded, filename, &argv, envv, extraAuxv, vdsoAddr,
     )?;

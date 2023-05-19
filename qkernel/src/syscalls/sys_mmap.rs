@@ -135,7 +135,6 @@ pub fn SysMmap(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
     let file = file.unwrap();
     let file_name = file.MappedName(task);
 
-    debug!("SysMmap addr {:x}, len {:x}, prot {:?}, flags {:?}, fd {:?}, offset {:?}, fixed {:?}, private {:?}, shared: {:?}, anon {:?} file_name {:?}, is_shared_lib {:?}", addr, len, prot, flags, fd, offset, fixed, private, shared, anon, file_name, is_shared_lib);
 
     //nginx
     if file_name.eq("/lib/x86_64-linux-gnu/libnss_files-2.31.so") && offset == 0xb000 {

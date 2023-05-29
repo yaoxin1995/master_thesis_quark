@@ -148,7 +148,7 @@ pub fn SysMmap(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
         measurement_manager.measure_shared_lib(start_adr, &file, task, fixed, len, &file_name).unwrap();
     }
 
-    //nginx
+    //redis
     if file_name.eq("/lib/x86_64-linux-gnu/libc-2.31.so") && offset == 0x1c9000 {
         error!("{:?} application start", crate::shield::shiled_clock_get_time());
     }

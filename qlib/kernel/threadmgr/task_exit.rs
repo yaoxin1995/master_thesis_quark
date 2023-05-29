@@ -1028,6 +1028,11 @@ impl Thread {
                 &cid, &execId
             );
 
+            if execId.is_empty() == false {
+                error!("{:?} exec req is ended", crate::shield::shiled_clock_get_time());
+            }
+
+
             let app_cid;
 
             {

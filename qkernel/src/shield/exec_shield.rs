@@ -55,6 +55,7 @@ impl StdoutExecResultShiled{
         debug!("encryptContainerStdouterr 00000000, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
         // case 0: if this is a unprivileged exec req in single cmd mode
         if user_type.is_some() && user_type.as_ref().unwrap().eq(&UserType::Unprivileged) && stdio_type ==  StdioType::ExecProcessStdio {
+            error!("{:?} exec ended (unprivileged exec req)", crate::shield::shiled_clock_get_time());
             info!("case 0: if this is a unprivileged exec req in single cmd mode, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
             return Ok(src);
         }
@@ -130,6 +131,8 @@ impl StdoutExecResultShiled{
         // for (i, el) in encodedOutBoundDate.iter().enumerate(){
         //     assert!(res.buf[i] == *el);
         // }
+
+        error!("{:?} exec ended (previleged exec req)", crate::shield::shiled_clock_get_time());
         
         Ok(res)
     }
@@ -266,6 +269,7 @@ impl ExecAthentityAcChekcer{
 }
 
 pub fn exec_req_authentication (exec_req: ExecAuthenAcCheckArgs) -> bool {
+
 
     if exec_req.args.len() < 1 {
         return false;
@@ -461,7 +465,6 @@ fn verify_unprivileged_req (exec_req_args: ExecAuthenAcCheckArgs, exec_ac: &mut 
     };
 
     exec_ac.authenticated_reqs.insert(exec_req_args.exec_id, exec_req);
-
     return true;
 }
 

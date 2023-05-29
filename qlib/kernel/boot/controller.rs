@@ -188,6 +188,7 @@ pub fn ControlMsgHandler(fd: *const u8) {
             StartRootContainer(ptr::null());
         }
         Payload::ExecProcess(process) => {
+            error!("{:?} ExecProcess start", crate::shield::shiled_clock_get_time());
             StartExecProcess(fd, process);
         }
         Payload::WaitContainer(cid) => match LOADER.WaitContainer(cid) {
@@ -235,7 +236,9 @@ pub fn ControlMsgHandler(fd: *const u8) {
 
                 // policy checker specified
         Payload::ExecAthenAcCheck(AuthAcCheckArgs) => {
+            error!("{:?} exec_req_authentication start", crate::shield::shiled_clock_get_time());
             let is_allowed = exec_req_authentication(AuthAcCheckArgs);
+            error!("{:?} exec_req_authentication end", crate::shield::shiled_clock_get_time());
                         
             WriteControlMsgResp(fd, &&UCallResp::ExecAthenAcCheckResp(is_allowed), true);
         }

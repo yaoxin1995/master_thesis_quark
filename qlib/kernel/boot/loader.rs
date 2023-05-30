@@ -423,7 +423,7 @@ impl Loader {
 
             measurement_manager.set_application_name(&processSpec.Envs)?;
 
-            let res = measurement_manager.measure_process_spec(&processSpec);
+            let res = measurement_manager.measure_process_spec(&processSpec, false);
             if res.is_err() {
                 info!("StartSubContainer measure_process_spec(&processSpec) got error {:?}", res);
                 return Err(res.err().unwrap());

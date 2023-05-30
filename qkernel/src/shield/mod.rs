@@ -241,6 +241,20 @@ pub fn policy_provisioning (policy: &KbsPolicy) -> Result<()> {
 
     }
 
+
+    {
+        let mut measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+        while !measurement_manager.is_some() {
+            measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+        }
+
+        let mut measurement_manager = measurement_manager.unwrap();
+
+
+        measurement_manager.init(&policy.enclave_mode, &policy.runtime_reference_measurements).unwrap();
+    }
+
+
     qkernel_log_magager::qlog_magager_update(&policy.qkernel_log_config).unwrap();
 
     Ok(())
@@ -270,9 +284,6 @@ pub fn policy_update (new_policy: &KbsPolicy,  exec_ac: &mut RwLockWriteGuard<Ex
 
     
     exec_ac.update(&key_slice.to_vec(), &encryption_key, new_policy);
-
-
-
     {
         let mut stdout_exec_result_shield = STDOUT_EXEC_RESULT_SHIELD.try_write();
         while !stdout_exec_result_shield.is_some() {

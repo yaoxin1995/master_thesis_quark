@@ -641,7 +641,7 @@ fn StartRootContainer(_para: *const u8) -> ! {
         let mut measurement_manager = measurement_manager.unwrap();
 
 
-        let res = measurement_manager.measure_process_spec(&process);
+        let res = measurement_manager.measure_process_spec(&process, true);
         if res.is_err() {
             error!("StartRootContainer measure_process_spec(&processSpec) got error {:?}", res);
             SHARESPACE.StoreShutdown();

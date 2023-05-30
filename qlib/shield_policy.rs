@@ -140,7 +140,7 @@ pub struct BackEndSyscallInterceptorConfig {
     pub enable: bool,
     pub mode: SystemCallInterceptorMode,
     pub default_action: DefaultAction,
-    pub syscalls: Vec<u64>
+    pub syscalls: [u64; 8]
 }
 
 #[derive(Default, Clone, Copy, Debug, PartialOrd, Ord, Eq, PartialEq, Serialize, Deserialize)]
@@ -160,8 +160,32 @@ pub struct QlogPolicy {
     pub allowed_max_log_level: QkernelDebugLevel
 }
 
+
+#[derive(Default, Clone, Copy, Debug, PartialOrd, Ord, Eq, PartialEq, Serialize, Deserialize)]
+pub enum EnclaveMode {
+    #[default]
+    Development,
+    Production
+}
+
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeReferenceMeasurement {
+    #[serde(rename = "binary_name")]
+    pub binary_name: String,
+    #[serde(rename = "reference_measurement")]
+    pub reference_measurement: String,
+}
+
+
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct KbsPolicy {
+    #[serde(rename = "app_launch_ref_measurement")]
+    pub app_launch_ref_measurement: String,
+    #[serde(rename = "runtime_reference_measurements")]
+    pub runtime_reference_measurements: Vec<RuntimeReferenceMeasurement>,
+    pub enclave_mode: EnclaveMode,
     pub enable_policy_updata: bool,
     pub privileged_user_config: PrivilegedUserConfig,
     pub unprivileged_user_config:  UnprivilegedUserConfig,

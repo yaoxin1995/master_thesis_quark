@@ -25,6 +25,7 @@ pub fn syscall_interceptor_policy_update(policy: &BackEndSyscallInterceptorConfi
     debug!("syscall_interceptor_policy_update policy {:?}", policy);
     syscall_info_keeper.policy.enable = policy.enable;
     syscall_info_keeper.policy.mode = policy.mode.clone();
+    syscall_info_keeper.policy.syscalls = policy.syscalls;
     Ok(())
 }
 
@@ -76,20 +77,38 @@ pub fn is_guest_syscall_allowed(current_pid: i32, syscall_id: u64) -> bool {
                 debug!("is_guest_syscall_allowed syscall id {:?}, ContextBased, not app process task id {:?}", syscall_id, current_pid);
                 return true;
             }
-
-            let res = syscall_info_keeper.policy.syscalls.contains(&syscall_id);
+            let allowed_list = syscall_info_keeper.policy.syscalls;
+            let res = is_syscall_allowed(allowed_list, syscall_id);
             debug!("is_guest_syscall_allowed syscall id {:?}, is allowed {:?}, ContextBased", syscall_id, res);
             return res;
         },
         SystemCallInterceptorMode::Global => {
 
-            let res = syscall_info_keeper.policy.syscalls.contains(&syscall_id);
+
+            let allowed_list = syscall_info_keeper.policy.syscalls;
+            let res = is_syscall_allowed(allowed_list, syscall_id);
+
             debug!("is_guest_syscall_allowed syscall id {:?}, is allowed {:?} Global", syscall_id, res);
             return res;
 
         }
     }
 }
+
+
+fn is_syscall_allowed(allowed_list: [u64; 8], syscall_num: u64)-> bool {
+    debug!("allowed_list {:?}, isyscall_num {:?}", allowed_list, syscall_num);
+    let position_in_u64 = syscall_num % 64;
+    let index = syscall_num / 64;
+    let is_allowed = allowed_list[index as usize] & (1 << position_in_u64);
+
+
+    debug!("allowed_list {:?}, isyscall_num {:?}, is_allowed {:?} allowed_list[index as usize] {:b}, (1 << position_in_u64) {:?}, position_in_u64 {:?} index {:?}", allowed_list, syscall_num, is_allowed, allowed_list[index as usize], (1 << position_in_u64), position_in_u64, index);
+    return is_allowed > 0;
+}
+
+
+
 
 
 

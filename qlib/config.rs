@@ -44,6 +44,7 @@ pub struct Config {
     pub Sandboxed: bool,
     pub Realtime: bool,
     pub EnableIOBuf: bool,
+    pub CquarkMode: CquarkMode
 }
 
 impl Config {
@@ -90,6 +91,7 @@ impl Default for Config {
             Sandboxed: false,
             Realtime: false,
             EnableIOBuf: false,
+            CquarkMode: CquarkMode::Production,
         };
     }
 }
@@ -102,6 +104,12 @@ pub enum DebugLevel {
     Info,
     Debug,
     Trace,
+}
+
+#[derive(Clone, Copy, Debug, PartialOrd, Ord, Eq, PartialEq, Serialize, Deserialize)]
+pub enum CquarkMode {
+    Development,
+    Production,
 }
 
 impl Default for DebugLevel {

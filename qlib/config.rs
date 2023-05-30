@@ -40,6 +40,7 @@ pub struct Config {
     pub DisableCgroup: bool,
     pub CopyDataWithPf: bool,
     pub TlbShootdownWait: bool,
+    pub CquarkMode: CquarkMode
 }
 
 impl Config {
@@ -83,6 +84,7 @@ impl Default for Config {
             DisableCgroup: true,
             CopyDataWithPf: false,
             TlbShootdownWait: false,
+            CquarkMode: CquarkMode::Production,
         };
     }
 }
@@ -95,6 +97,12 @@ pub enum DebugLevel {
     Info,
     Debug,
     Trace,
+}
+
+#[derive(Clone, Copy, Debug, PartialOrd, Ord, Eq, PartialEq, Serialize, Deserialize)]
+pub enum CquarkMode {
+    Development,
+    Production,
 }
 
 impl Default for DebugLevel {

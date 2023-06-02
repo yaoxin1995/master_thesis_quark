@@ -1,3 +1,4 @@
+use core::clone;
 use core::intrinsics::offset;
 
 use alloc::string;
@@ -53,6 +54,7 @@ pub struct SoftwareMeasurementManager {
     global_measurement : String,
     // measurement that tracks the appllication building process
     app_ref_measurement : String,
+    enclave_ref_measurement: String,
     // measurement that tracks the application rebuilding process (app exit, k8s tries to restart the app)
     // if the tmp_measurement doesn't match the  app_ref_measurement, panic!!! 
     tmp_measurement : String,
@@ -267,6 +269,7 @@ impl SoftwareMeasurementManager {
                     //nothing need to be compared here
                 }
             }
+            self.enclave_ref_measurement = self.global_measurement.clone();
 
         } else {
 
@@ -387,7 +390,7 @@ impl SoftwareMeasurementManager {
 
     pub fn get_measurement(&self) -> Result<String> {
 
-        Ok(self.app_ref_measurement.clone())
+        Ok(self.enclave_ref_measurement.clone())
     }
 
 

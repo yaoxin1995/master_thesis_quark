@@ -511,6 +511,8 @@ impl SnpGuestDev {
             )));
         }
 
+		// let encoded = Base64::encode_string(&report_data_bin);
+
 		let mut fw_err = 0;
 		
 		let user_data = vec_to_array(report_data_bin);

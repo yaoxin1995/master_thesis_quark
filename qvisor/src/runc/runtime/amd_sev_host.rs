@@ -124,14 +124,16 @@ pub fn qivsor_sev_inject_lauch_secret () -> SnpSecretsPageLayout {
 
 }
 
-pub fn prepare_guest_attestation_report (_user_data: &[u8; 64] ) -> sev_guest::AttestationReport {
+pub fn prepare_guest_attestation_report (user_data: &[u8; 64] ) -> sev_guest::AttestationReport {
 
 
 	// TODO: add user_data to attesstation report
 	let sample_report = MOCK_ATTESTAION_REPORT.lock();
 
-	let report: sev_guest::AttestationReport = sample_report.clone();
+	let mut report: sev_guest::AttestationReport = sample_report.clone();
 
+	report.report_data = user_data.to_vec();
+	
 	info!("prepare_guest_attestation_report snp_report {:?}", report);
 
 	report

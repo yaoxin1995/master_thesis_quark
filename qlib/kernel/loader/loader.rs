@@ -353,7 +353,7 @@ pub fn Load(
             info!("Loadmeasurement_manager.measure_stack got error {:?}", res);
             return Err(res.err().unwrap());
         }
-        software_measurement= measurement_manager.get_measurement().unwrap();
+        software_measurement = measurement_manager.get_measurement().unwrap();
     }
 
 
@@ -362,7 +362,7 @@ pub fn Load(
       
 
     if app_name.eq(name){
-        debug!("Load attestation begin, the software measurement is {:?}", software_measurement);
+        debug!("Load attestation begin");
 
         // trigger remote attestation and secret provisioning when the kernel is going to launch application binary first time
         // skip if application is restarted

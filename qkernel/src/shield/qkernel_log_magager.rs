@@ -29,6 +29,7 @@ pub fn qlog_magager_init() -> Result<()> {
 
     let mut qloger = QLOGMANAGER.write();
     qloger.policy = QlogPolicy::default();
+    qloger.policy.enable = true;
     Ok(())
 }
 

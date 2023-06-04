@@ -145,11 +145,11 @@ pub struct BackEndSyscallInterceptorConfig {
 
 #[derive(Default, Clone, Copy, Debug, PartialOrd, Ord, Eq, PartialEq, Serialize, Deserialize)]
 pub enum QkernelDebugLevel {
+    #[default]
     Off,
     Error,
     Warn,
     Info,
-    #[default]
     Debug,
     Trace,
 }

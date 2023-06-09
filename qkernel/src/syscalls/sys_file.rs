@@ -321,6 +321,25 @@ pub fn openAt(task: &Task, dirFd: i32, addr: u64, flags: u32) -> Result<i32> {
 
             d.InotifyEvent(InotifyEvent::IN_OPEN, 0, EventType::InodeEvent);
 
+
+            // init shared lib hash
+            let root = task.Root();
+            let (file_name, _) = file.Dirent.FullName(&root);
+            let is_shared_lib =  crate::shield::software_measurement_manager::is_shared_lib(&file_name).unwrap();
+            if is_shared_lib {
+                let mut measurement_manager = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+                while !measurement_manager.is_some() {
+                    measurement_manager = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+                }
+
+                let mut measurement_manager = measurement_manager.unwrap();
+
+
+                let pid = task.Thread().ThreadGroup().ID();
+                let file_name_key = format!("{} {}", pid, file_name);
+                measurement_manager.init_shared_lib_hash(&file_name_key).unwrap();
+            }
+
             return Ok(());
         },
     )?;
@@ -923,6 +942,27 @@ pub fn SysClose(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
 
 pub fn close(task: &Task, fd: i32) -> Result<()> {
     let file = task.RemoveFile(fd)?;
+
+
+    let root = task.Root();
+    let (file_name, _) = file.Dirent.FullName(&root);
+
+    let is_shared_lib =  crate::shield::software_measurement_manager::is_shared_lib(&file_name).unwrap();
+
+    if is_shared_lib {
+        let mut measurement_manager = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+        while !measurement_manager.is_some() {
+            measurement_manager = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+        }
+
+        let mut measurement_manager = measurement_manager.unwrap();
+
+        let pid = task.Thread().ThreadGroup().ID();
+        let file_name_key = format!("{} {}", pid, file_name);
+        measurement_manager.check_runtime_hash(&file_name_key).unwrap();
+    }
+
+
 
     file.Flush(task)?;
     Ok(())

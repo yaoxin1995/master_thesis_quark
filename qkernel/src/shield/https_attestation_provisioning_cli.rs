@@ -924,7 +924,7 @@ fn get_policy(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSh
         .map_err(|e| Error::Common(format!("get_policy provisioning_http_client, attestation phase 2: parse resp get error: {:?}", e)))?;
 
     let http_get_resp = String::from_utf8_lossy(&secret).to_string();
-    log::debug!("get_policy provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, resp_len);
+    log::info!("get_policy provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, resp_len);
 
     let bytes = base64::decode(secret)
         .map_err(|e| Error::Common(format!("get_policy base64::decode failed to get secret {:?}", e)))?;

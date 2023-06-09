@@ -145,7 +145,11 @@ pub fn SysMmap(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
             measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
         }
         let mut measurement_manager = measurement_manager.unwrap();
-        measurement_manager.measure_shared_lib(start_adr, &file, &task, fixed, len).unwrap();
+        let root = task.Root();
+        let (file_name, _) = file.Dirent.FullName(&root);
+        let pid = task.Thread().ThreadGroup().ID();
+        let file_name_key = format!("{} {}", pid, file_name);
+        measurement_manager.measure_shared_lib(start_adr, &file, &task, fixed, len, offset, file_name_key).unwrap();
     }
 
     Ok(start_adr as i64)

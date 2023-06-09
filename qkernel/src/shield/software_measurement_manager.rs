@@ -1,3 +1,7 @@
+use core::clone;
+use core::intrinsics::offset;
+
+use alloc::string;
 use alloc::vec::Vec;
 use spin::rwlock::RwLock;
 use alloc::string::{String, ToString};
@@ -9,6 +13,10 @@ use qlib::auxv::AuxEntry;
 use qlib::path::*;
 use qlib::linux_def::*;
 use fs::file::File;
+use alloc::collections::btree_map::BTreeMap;
+use shield::EnclaveMode;
+use shield::RuntimeReferenceMeasurement;
+
 
 const APP_NMAE: &str = "APPLICATION_NAME"; 
 const SHARED_LIB_PATTERN: &str = ".so"; 
@@ -24,7 +32,7 @@ struct QKernelArgs {
     id: u64, 
     svdsoParamAddr: u64, 
     vcpuCnt: u64, 
-    autoStart: bool
+    autoStart: bool,
 }
 
 enum MeasurementType{
@@ -36,6 +44,7 @@ enum MeasurementType{
 
 #[derive(Debug, Default)]
 pub struct SoftwareMeasurementManager {
+    enclave_mode: EnclaveMode,
     containerlized_app_name: String,
     is_app_loaded: bool,
     load_app_start: bool,
@@ -45,9 +54,19 @@ pub struct SoftwareMeasurementManager {
     global_measurement : String,
     // measurement that tracks the appllication building process
     app_ref_measurement : String,
+    enclave_ref_measurement: String,
     // measurement that tracks the application rebuilding process (app exit, k8s tries to restart the app)
     // if the tmp_measurement doesn't match the  app_ref_measurement, panic!!! 
-    tmp_measurement : String,
+    tmp_bianry_measurement : String,
+
+    //记录lib测量过程中的值 
+    shared_lib_measurements: BTreeMap<String, String>,
+    runtime_binary_measurement:  BTreeMap<String, String>,
+    runtime_binary_reference_measurement:  BTreeMap<String, String>,
+
+    //记录lib测量的结果
+    startup_shared_lib_measurement_results:  BTreeMap<String, String>,
+    restart_shared_lib_measurement_results:  BTreeMap<String, String>,
 }
 
 
@@ -84,12 +103,27 @@ pub fn is_shared_lib(file_name: &str) -> Result<bool> {
 
 impl SoftwareMeasurementManager {
 
+
+    pub fn init(&mut self, enclave_mode: &EnclaveMode, runtime_reference_measurement: &Vec<RuntimeReferenceMeasurement> ) -> Result<()>{
+
+
+        self.enclave_mode = enclave_mode.clone();
+        
+
+        for item in runtime_reference_measurement {
+            self.runtime_binary_reference_measurement.insert(item.binary_name.clone(), item.reference_measurement.clone());
+        }
+        Ok(())
+    }
+
+
+
     fn updata_measurement(&mut self, new_data: Vec<u8>, m_type: MeasurementType) -> Result<()> {
 
         let measurement = match m_type {
             MeasurementType::Global => self.global_measurement.clone(),
             MeasurementType::AppRef => self.app_ref_measurement.clone(),
-            MeasurementType::Tmp => self.tmp_measurement.clone(),   
+            MeasurementType::Tmp => self.tmp_bianry_measurement.clone(),   
         };
 
         let chunks = vec![
@@ -98,31 +132,56 @@ impl SoftwareMeasurementManager {
         ];
 
         let hash_res = super::hash_chunks(chunks);
-
-        self.global_measurement = hash_res;
+        match m_type {
+            MeasurementType::Global => self.global_measurement = hash_res,
+            MeasurementType::AppRef => self.app_ref_measurement = hash_res,
+            MeasurementType::Tmp => self.tmp_bianry_measurement = hash_res,   
+        };
 
         Ok(())
     }
 
-    pub fn measure_process_spec(&mut self, proc_spec: &Process) -> Result<()> {
+    pub fn measure_process_spec(&mut self, proc_spec: &Process, is_root: bool) -> Result<()> {
 
         self.load_app_end = false;
-        self.tmp_measurement = String::default();
+        self.tmp_bianry_measurement = String::default();
+        self.restart_shared_lib_measurement_results = BTreeMap::default();
 
-        let proccess_spec_vec = serde_json::to_vec(proc_spec);
+
+        let mut process = Process::default();
+        process.Terminal = proc_spec.Terminal;
+        
+
+        // info!("measure_process_spec {:?}", process_spec);
+
+        if is_root == false {
+            self.load_app_start = true;
+            self.load_app_end = false;
+        }
+
+
+        let proccess_spec_vec = serde_json::to_vec(&process);
         if proccess_spec_vec.is_err() {
             info!("measure_process_spec serde_json::to_vec(proc_spec) get error");
             return Err(Error::Common("measure_process_spec serde_json::to_vec(proc_spec) get error".to_string()));
         }
 
         let proccess_spec_vec_in_bytes = proccess_spec_vec.unwrap();
-
-        if self.is_app_loaded {
-            self.updata_measurement(proccess_spec_vec_in_bytes, MeasurementType::Tmp).unwrap();
+        // app restart
+        if self.is_app_loaded && !self.load_app_end && self.load_app_start{
+            info!("measure_process_spec app restart");
+            self.updata_measurement(proccess_spec_vec_in_bytes, MeasurementType::Tmp).unwrap();            
+        // during app first time loading
+        } else if !self.is_app_loaded && !self.load_app_end && self.load_app_start {
+            info!("measure_process_spec app load");
+            self.updata_measurement(proccess_spec_vec_in_bytes.clone(), MeasurementType::AppRef).unwrap();
+            self.updata_measurement(proccess_spec_vec_in_bytes, MeasurementType::Global).unwrap();
+            // app runtime 
+        } else  if self.is_app_loaded && self.load_app_end && !self.load_app_start {
+        
         } else {
-            self.updata_measurement(proccess_spec_vec_in_bytes.clone(), MeasurementType::Global).unwrap();
-            self.updata_measurement(proccess_spec_vec_in_bytes, MeasurementType::AppRef).unwrap();
         }
+
         Ok(())
     }
 
@@ -139,18 +198,11 @@ impl SoftwareMeasurementManager {
         Ok(())
     }
 
-    pub fn measure_qkernel_argument (&mut self, heapStart: u64, shareSpaceAddr: u64, id: u64, svdsoParamAddr: u64, vcpuCnt: u64, autoStart: bool) ->  Result<()> {
+    pub fn measure_qkernel_argument (&mut self, _heapStart: u64, _shareSpaceAddr: u64, _id: u64, _svdsoParamAddr: u64, __vcpuCnt: u64, _autoStart: bool) ->  Result<()> {
 
-        let qkernel_args = QKernelArgs {
-            heapStart: heapStart,
-            shareSpaceAddr: shareSpaceAddr,
-            id: id,
-            svdsoParamAddr: svdsoParamAddr,
-            vcpuCnt: vcpuCnt,
-            autoStart: autoStart,
-        };
+        let config = crate::SHARESPACE.config.read().clone();
 
-        let kernel_args_in_bytes = serde_json::to_vec(&qkernel_args)
+        let kernel_args_in_bytes = serde_json::to_vec(&config)
             .map_err(|e| Error::Common(format!("measure_qkernel_argument, serde_json::to_vec(&qkernel_args) get error {:?}", e)))?;
 
         self.updata_measurement(kernel_args_in_bytes, MeasurementType::Global).unwrap();
@@ -162,7 +214,9 @@ impl SoftwareMeasurementManager {
      *  Only measure the auxv we got from elf file is enough,
      *  Other data like, envv, argv, are measuared by `measure_process_spec`
      */
-    pub fn measure_stack(&mut self, auxv: Vec<AuxEntry>, is_app: bool) -> Result<()> {
+    pub fn measure_stack(&mut self, auxv: Vec<AuxEntry>, is_app: bool, binary_name: &str) -> Result<()> {
+
+        info!("measure_stack binary_name {:?}, auxv {:?}",binary_name, auxv);
 
         let mut aux_entries_in_byte = Vec::new();
         for entry in auxv {
@@ -173,39 +227,75 @@ impl SoftwareMeasurementManager {
 
         // app retart
         if self.is_app_loaded && !self.load_app_end && !is_app {
-            self.updata_measurement(aux_entries_in_byte, MeasurementType::Tmp).unwrap();
         // app restart, app binary loading is finished
-        } else if self.is_app_loaded && !self.load_app_end && is_app{
-            self.updata_measurement(aux_entries_in_byte, MeasurementType::Tmp).unwrap();
-
+        } else if self.is_app_loaded && !self.load_app_end && self.load_app_start && is_app{
             let app_ref_measurement = self.app_ref_measurement.clone();
-            let tmp_measurement = self.tmp_measurement.clone();
+            let tmp_bianry_measurement = self.tmp_bianry_measurement.clone();
 
-            if app_ref_measurement.eq(&tmp_measurement) {
+            if app_ref_measurement.eq(&tmp_bianry_measurement) {
                 self.load_app_end = true;
-                info!("app restart successfully");
+                self.load_app_start = false;
+                for (k, v) in &self.restart_shared_lib_measurement_results {
+                    let ref_hash = self.startup_shared_lib_measurement_results.get(k);
+                    if ref_hash.is_none() {
+                        panic!("restart failed, during restart  app load unknow shared lib   shared lib name {:?}, reference shared lib values {:?}", k, self.startup_shared_lib_measurement_results);
+                    }
+                    let ref_hash = ref_hash.unwrap();
+
+                    if ref_hash.eq(v) == false {
+                        panic!("restart failed, during restart  app load buggy shared lib   shared lib name {:?}, reference hash {:?}, measured_hahs {:?}", k, ref_hash, v);
+                    }
+                }
+                info!("app restart successfully, binary_ref_measurement {:?}, tmp_binary_measurement {:?}",app_ref_measurement, tmp_bianry_measurement);
+                self.restart_shared_lib_measurement_results = BTreeMap::new();
+                self.tmp_bianry_measurement = String::new();
                 return Ok(());
             }
 
-            panic!("tmp_measurement doesn't match the app_ref_measurement, k8s tries to restart application using bad bainary")
+            panic!("tmp_measurement doesn't match the app_ref_measurement {:?}, k8s tries to restart application using bad bainary {:?}", app_ref_measurement, tmp_bianry_measurement);
         // during app first time loading
-        } else if !self.is_app_loaded && !self.load_app_end && !is_app {
-            self.updata_measurement(aux_entries_in_byte.clone(), MeasurementType::AppRef).unwrap();
-            self.updata_measurement(aux_entries_in_byte, MeasurementType::Global).unwrap();
+        } else if !self.is_app_loaded && !self.load_app_end && self.load_app_start && !is_app {
         // app first time loading us finished
-        } else if !self.is_app_loaded && !self.load_app_end && is_app{
-            self.updata_measurement(aux_entries_in_byte.clone(), MeasurementType::AppRef).unwrap();
-            self.updata_measurement(aux_entries_in_byte, MeasurementType::Global).unwrap();
+        } else if !self.is_app_loaded && !self.load_app_end && self.load_app_start && is_app{
             self.is_app_loaded = true;
-            self.load_app_end = true
+            self.load_app_end = true;
+            self.load_app_start = false;
+
+
+            let mut lib_hashes = String::default();
+            for (key, value) in &self.startup_shared_lib_measurement_results {
+
+                let chunks = vec![
+                    lib_hashes.as_bytes().to_vec(),
+                    value.as_bytes().to_vec()
+                ];
+
+                let lib_hashes = super::hash_chunks(chunks);
+            }
+
+            let chunks = vec![
+                self.global_measurement.clone().as_bytes().to_vec(),
+                lib_hashes.as_bytes().to_vec()
+            ];
+
+            let enclave_start_hash  = super::hash_chunks(chunks);
+
+            match self.enclave_mode {
+                EnclaveMode::Development => error!("enclave_start_hash {:?}, app ref {:?}", enclave_start_hash, self.app_ref_measurement),
+                EnclaveMode::Production =>  {
+                    //nothing need to be compared here
+                }
+            }
+            self.enclave_ref_measurement = enclave_start_hash;
+
         } else {
-            self.updata_measurement(aux_entries_in_byte, MeasurementType::Global).unwrap();
         }
+
 
         Ok(())
     }
 
-    pub fn measure_elf_loadable_segment(&mut self, load_segment_virtual_addr: u64, load_segment_size: u64, offset: u64, task: &Task) -> Result<()> {
+    pub fn measure_elf_loadable_segment(&mut self, load_segment_virtual_addr: u64, load_segment_size: u64, offset: u64, task: &Task, file_name: &str) -> Result<()> {
 
         let startMem = Addr(load_segment_virtual_addr).RoundDown().unwrap();
         let endMem = Addr(load_segment_virtual_addr)
@@ -222,21 +312,24 @@ impl SoftwareMeasurementManager {
 
         let loadable = data.unwrap();
 
-        // app retart
-        if self.is_app_loaded && !self.load_app_end{
-            self.updata_measurement(loadable, MeasurementType::Tmp).unwrap();
-        // during app first time loading
-        } else if !self.is_app_loaded && !self.load_app_end {
-            self.updata_measurement(loadable.clone(), MeasurementType::AppRef).unwrap();
-            self.updata_measurement(loadable, MeasurementType::Global).unwrap();
-        } else {
-            self.updata_measurement(loadable, MeasurementType::Global).unwrap();
+        let current_hash = self.runtime_binary_measurement.remove(file_name);
+        if current_hash.is_none() {
+            panic!("measure_elf_loadable_segment  binary_name {:?}, hashmap {:?}", file_name, self.runtime_binary_measurement);
         }
+        let current_hash = current_hash.unwrap();
+
+        let chunks = vec![
+            current_hash.as_bytes().to_vec(),
+            loadable.clone()
+        ];
+        let hash_res = super::hash_chunks(chunks);
+        self.runtime_binary_measurement.insert(file_name.to_string(), hash_res);
+        
     
         Ok(())
     }
 
-    pub fn measure_shared_lib(&mut self, start_addr: u64, file: &File, task: &Task, fixed: bool, mmmap_len: u64) -> Result<()> {
+    pub fn measure_shared_lib(&mut self, start_addr: u64, file: &File, task: &Task, fixed: bool, mmmap_len: u64, offset: u64, file_name: String) -> Result<()> {
 
         let uattr = file.UnstableAttr(task)?;
         let real_mmap_size = if uattr.Size as u64 > mmmap_len {
@@ -245,24 +338,9 @@ impl SoftwareMeasurementManager {
             uattr.Size as u64
         };
 
-        // let length = match Addr(shared_lib_size).RoundDown() {
-        //     Err(_) => return Err(Error::SysError(SysErr::ENOMEM)),
-        //     Ok(l) => l.0,
-        // };
-        debug!("measure_shared_lib, addr {:x}, shared_lib_size {:x}, fixed {:?}, mmmap_len {:x}", start_addr, real_mmap_size, fixed, mmmap_len);
+        debug!("measure_shared_lib, addr {:x}, shared_lib_size {:x}, fixed {:?}, mmmap_len {:x} file_name {:?}", start_addr, real_mmap_size, fixed, mmmap_len, file_name);
         
-        let data: Result<Vec<u8>>;
-        if fixed {
-            let length = match Addr(mmmap_len).RoundDown() {
-                Err(_) => return Err(Error::SysError(SysErr::ENOMEM)),
-                Ok(l) => l.0,
-            };
-
-            data = task.CopyInVec(start_addr, length as usize);
-        } else {
-            data = task.CopyInVec(start_addr, real_mmap_size as usize);
-        }
-
+        let data: Result<Vec<u8>> = task.CopyInVec(start_addr, real_mmap_size as usize);
         if data.is_err() {
             info!("measure_shared_lib After task.CopyInVec got error {:?}", data);
             return Err(data.err().unwrap());
@@ -270,25 +348,164 @@ impl SoftwareMeasurementManager {
 
         let loadable = data.unwrap();
 
-        // app retart
-        if self.is_app_loaded && !self.load_app_end{
-            self.updata_measurement(loadable, MeasurementType::Tmp).unwrap();            
-        // during app first time loading
-        } else if !self.is_app_loaded && !self.load_app_end {
-            self.updata_measurement(loadable.clone(), MeasurementType::AppRef).unwrap();
-            self.updata_measurement(loadable, MeasurementType::Global).unwrap();
-        // app first time loading is finished, 
-        } else {
-            self.updata_measurement(loadable, MeasurementType::Global).unwrap();
-            // compare the loadable with the hash in policy file
+        let current_hash = self.shared_lib_measurements.remove(&file_name);
+        if current_hash.is_none() {
+            panic!("measure_shared_lib check_runtime_hash shared_lib_name {:?}, hashmap {:?}", file_name, self.shared_lib_measurements);
         }
+        let current_hash = current_hash.unwrap();
+
+        let chunks = vec![
+            current_hash.as_bytes().to_vec(),
+            loadable
+        ];
+        let hash_res = super::hash_chunks(chunks);
+        self.shared_lib_measurements.insert(file_name, hash_res);
+
 
         Ok(())
     }
 
     pub fn get_measurement(&self) -> Result<String> {
 
-        Ok(self.global_measurement.clone())
+        Ok(self.enclave_ref_measurement.clone())
+    }
+
+
+
+    pub fn init_shared_lib_hash (&mut self, shared_lib_name: &str) -> Result<()> {
+        info!("init_shared_lib_hash {:?}", shared_lib_name);
+        self.shared_lib_measurements.insert(shared_lib_name.to_string(), String::default());
+        Ok(())
+    }
+
+
+
+    pub fn check_runtime_hash (&mut self, shared_lib_name: &str) -> Result<()> {
+
+        let hash = self.shared_lib_measurements.remove(shared_lib_name);
+        if hash.is_none() {
+            panic!("check_runtime_hash shared_lib_name {:?}, hashmap {:?}", shared_lib_name, self.shared_lib_measurements);
+        }
+
+        let hash = hash.unwrap();
+        let strs : Vec<&str> = shared_lib_name.split_whitespace().collect();
+        let lib_name = strs[1];
+        // app retart
+        if self.is_app_loaded && !self.load_app_end && self.load_app_start{
+
+            let hash_value = self.restart_shared_lib_measurement_results.get(lib_name);
+            if hash_value.is_none() {
+                self.restart_shared_lib_measurement_results.insert(lib_name.to_string(), hash);
+            } else {
+                let ref_hash = hash_value.unwrap();
+                if ref_hash.eq(&hash) == false {
+                    panic!("chech restart time hash the libs with the same name doesn't match, libname {}, first hashed value {} secent hash value {:?}", lib_name, ref_hash, hash);
+                }
+            }   
+        // during app first time loading
+        } else if !self.is_app_loaded && !self.load_app_end && self.load_app_start {
+            info!("runtime hash file nmae {:?}, hash {:?}", shared_lib_name, hash);
+
+
+            let hash_value = self.startup_shared_lib_measurement_results.get(lib_name);
+            if hash_value.is_none() {
+                self.startup_shared_lib_measurement_results.insert(lib_name.to_string(), hash);
+            } else {
+                let ref_hash = hash_value.unwrap();
+                if ref_hash.eq(&hash) == false {
+                    panic!("chech startup time hash the libs with the same name doesn't match libname {}, first hashed value {} secent hash value {:?}", lib_name, ref_hash, hash);
+                }
+            }
+        // app runtime measurement 
+        } else  if self.is_app_loaded && self.load_app_end && !self.load_app_start {
+
+            let strs : Vec<&str> = shared_lib_name.split_whitespace().collect();
+            let lib_name = strs[1];
+            match self.enclave_mode {
+                EnclaveMode::Development => {
+                    error!("lib_name {:?}, measurement {:?}",lib_name, hash)
+                }
+                EnclaveMode::Production =>  {
+                    // compare the loadable with the hash in policy file
+    
+                    let reference = self.runtime_binary_reference_measurement.get(lib_name).clone();
+    
+                    if reference.is_none() {
+                        panic!("check_runtime_binary_hash missing reference value binary_name {}, hashed value {}", lib_name, hash);
+                    }
+    
+                    let ref_value = reference.unwrap();
+    
+                    if ref_value.eq(&hash) == false {
+                        panic!("check_runtime_binary_hash hash not match  binary_name {}, refernce {} hashed value {}", lib_name, ref_value, hash);
+                    }
+    
+                }
+            }
+        } else {
+
+        }
+
+        Ok(())
+    }
+
+
+
+    pub fn init_runtime_binary_hash (&mut self, binary_name: &str) -> Result<()> {
+        //runtime
+        info!("init_runtime_binary_hash {:?}", binary_name);
+        self.runtime_binary_measurement.insert(binary_name.to_string(), String::default());
+        Ok(())
+    }
+
+
+
+    pub fn check_runtime_binary_hash (&mut self, binary_name: &str) -> Result<()> {
+
+
+        let hash = self.runtime_binary_measurement.remove(binary_name);
+        if hash.is_none() {
+            panic!("check_runtime_binary_hash  binary_name {:?}, hashmap {:?}", binary_name, self.runtime_binary_measurement);
+        }
+        let hash = hash.unwrap();
+
+        // app retart
+        if self.is_app_loaded && !self.load_app_end && self.load_app_start{
+            self.updata_measurement(hash.into_bytes().to_vec(), MeasurementType::Tmp).unwrap();
+        // during app first time loading
+        } else if !self.is_app_loaded && !self.load_app_end && self.load_app_start{
+            // info!("measure_elf_loadable_segment during app first time loading global_measurement {:?}  app_reference_measurement {:?}", self.global_measurement, self.app_ref_measurement);
+            
+            self.updata_measurement(hash.as_bytes().to_vec(), MeasurementType::AppRef).unwrap();
+            self.updata_measurement(hash.as_bytes().to_vec(), MeasurementType::Global).unwrap();
+            // app runtime 
+        } else  if self.is_app_loaded && self.load_app_end && !self.load_app_start {
+
+            match self.enclave_mode {
+                EnclaveMode::Development => {
+                    error!("runtime binary_name {:?}, measurement {:?}",binary_name, hash)
+                }
+                EnclaveMode::Production =>  {
+                    // compare the loadable with the hash in policy file
+
+                    let reference = self.runtime_binary_reference_measurement.get(binary_name).clone();
+
+                    if reference.is_none() {
+                        panic!("check_runtime_binary_hash missing reference value binary_name {}, hashed value {}", binary_name, hash);
+                    }
+
+                    let ref_value = reference.unwrap();
+
+                    if ref_value.eq(&hash) == false {
+                        panic!("check_runtime_binary_hash hash not match  binary_name {}, refernce {} hashed value {}", binary_name, ref_value, hash);
+                    }
+                }
+            }
+        }  else {
+            
+        }
+
+        Ok(())
     }
 
 }

@@ -355,7 +355,7 @@ impl Loader {
     }
 
     pub fn CreateSubContainer(&self, cid: String, fds: Vec<i32>) -> Result<()> {
-        let tty = if fds.len() == 0 { fds[0] } else { -1 };
+        let tty = if fds.len() == 1 { fds[0] } else { -1 };
         let stdios = if fds.len() == 3 {
             [fds[0], fds[1], fds[2]]
         } else {
@@ -394,7 +394,7 @@ impl Loader {
 
             measurement_manager.set_application_name(&processSpec.Envs)?;
 
-            let res = measurement_manager.measure_process_spec(&processSpec);
+            let res = measurement_manager.measure_process_spec(&processSpec, false);
             if res.is_err() {
                 info!("StartSubContainer measure_process_spec(&processSpec) got error {:?}", res);
                 return Err(res.err().unwrap());

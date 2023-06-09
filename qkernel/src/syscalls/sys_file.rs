@@ -334,7 +334,10 @@ pub fn openAt(task: &Task, dirFd: i32, addr: u64, flags: u32) -> Result<i32> {
 
                 let mut measurement_manager = measurement_manager.unwrap();
 
-                measurement_manager.init_shared_lib_hash(&file_name).unwrap();
+
+                let pid = task.Thread().ThreadGroup().ID();
+                let file_name_key = format!("{} {}", pid, file_name);
+                measurement_manager.init_shared_lib_hash(&file_name_key).unwrap();
             }
 
             return Ok(());
@@ -954,7 +957,9 @@ pub fn close(task: &Task, fd: i32) -> Result<()> {
 
         let mut measurement_manager = measurement_manager.unwrap();
 
-        measurement_manager.check_runtime_hash(&file_name).unwrap();
+        let pid = task.Thread().ThreadGroup().ID();
+        let file_name_key = format!("{} {}", pid, file_name);
+        measurement_manager.check_runtime_hash(&file_name_key).unwrap();
     }
 
 

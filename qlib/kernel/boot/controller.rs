@@ -179,7 +179,7 @@ pub fn ControlMsgHandler(fd: *const u8) {
             WriteControlMsgResp(fd, &UCallResp::SignalResp, true);
         }
         Payload::ContainerDestroy(cid) => {
-            LOADER.Lock(task).unwrap().DestroyContainer(cid).unwrap();
+            LOADER.Lock(task).unwrap().DestroyContainer(cid).ok();
             WriteControlMsgResp(fd, &UCallResp::ContainerDestroyResp, true);
         }
         Payload::RootContainerStart(_) => {

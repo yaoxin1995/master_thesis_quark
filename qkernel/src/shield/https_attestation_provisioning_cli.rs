@@ -912,7 +912,7 @@ fn get_policy(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSh
         return Err(Error::Common(format!("get_policy user didn't provide policy, enclave will use default one")));
     }
 
-    let mut rx_buf_get_secret = [0; 12288];
+    let mut rx_buf_get_secret = [0; 8192];
     debug!("get_policy policy_url {:?}, read buf len {:?}", policy_url, rx_buf_get_secret.len());
 
     let get_resource_http = client.prepair_get_resource_http_req(policy_url.unwrap());
@@ -924,7 +924,7 @@ fn get_policy(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSh
         .map_err(|e| Error::Common(format!("get_policy provisioning_http_client, attestation phase 2: parse resp get error: {:?}", e)))?;
 
     let http_get_resp = String::from_utf8_lossy(&secret).to_string();
-    log::debug!("get_policy provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, resp_len);
+    log::info!("get_policy provisioning_https_client  attestation phase 2 resp: {}, resp_len {}", http_get_resp, resp_len);
 
     let bytes = base64::decode(secret)
         .map_err(|e| Error::Common(format!("get_policy base64::decode failed to get secret {:?}", e)))?;

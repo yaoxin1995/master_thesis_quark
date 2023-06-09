@@ -914,7 +914,7 @@ fn get_policy(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Aes128GcmSh
         return Err(Error::Common(format!("get_policy user didn't provide policy, enclave will use default one")));
     }
 
-    let mut rx_buf_get_secret = [0; 8192];
+    let mut rx_buf_get_secret = [0; 12288];
     debug!("get_policy policy_url {:?}, read buf len {:?}", policy_url, rx_buf_get_secret.len());
 
     let get_resource_http = client.prepair_get_resource_http_req(policy_url.unwrap());

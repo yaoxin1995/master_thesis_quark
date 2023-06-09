@@ -1038,7 +1038,10 @@ impl MemoryManager {
                         self.MapPageWriteLocked(pageAddr, page, exec);
                         super::super::PAGE_MGR.DerefPage(page);
                     } else {
-                        self.MapPageReadLocked(pageAddr, phyAddr, exec);
+                        let page = { super::super::PAGE_MGR.AllocPage(true).unwrap() };
+                        CopyPage(page, phyAddr);
+                        self.MapPageReadLocked(pageAddr, page, exec);
+                        super::super::PAGE_MGR.DerefPage(page);
                     }
                 } else {
                     let writeable = vma.effectivePerms.Write();

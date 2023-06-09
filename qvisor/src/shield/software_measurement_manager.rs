@@ -51,7 +51,7 @@ impl SoftwareMeasurementManager {
         Err(Error::NotSupport)
     }
 
-    pub fn measure_process_spec(&mut self, _proc_spec: &Process) -> Result<()> {
+    pub fn measure_process_spec(&mut self, _proc_spec: &Process, _is_root: bool) -> Result<()> {
         Err(Error::NotSupport)
     }
 
@@ -67,11 +67,11 @@ impl SoftwareMeasurementManager {
      *  Only measure the auxv we got from elf file is enough,
      *  Other data like, envv, argv, are measuared by `measure_process_spec`
      */
-    pub fn measure_stack(&mut self, _auxv: Vec<AuxEntry>, _is_app: bool, _task: &mut Task) -> Result<()> {
+    pub fn measure_stack(&mut self, _auxv: Vec<AuxEntry>, _is_app: bool, _task: &mut Task, binary: &str) -> Result<()> {
         Err(Error::NotSupport)
     }
 
-    pub fn measure_elf_loadable_segment(&mut self, _load_segment_virtual_addr: u64, _load_segment_size: u64, _offset: u64, _task: &Task) -> Result<()> {
+    pub fn measure_elf_loadable_segment(&mut self, _load_segment_virtual_addr: u64, _load_segment_size: u64, _offset: u64, _task: &Task, file_name: &str) -> Result<()> {
         Err(Error::NotSupport)
     }
 
@@ -81,6 +81,19 @@ impl SoftwareMeasurementManager {
 
     pub fn get_measurement(&self) -> Result<String> {
         Err(Error::NotSupport)
+    }
+
+    
+    pub fn init_runtime_binary_hash (&mut self, binary_name: &str) -> Result<()> {
+
+        Ok(())
+    }
+
+
+
+    pub fn check_runtime_binary_hash (&mut self, binary_name: &str) -> Result<()> {
+
+        Ok(())
     }
 
 }

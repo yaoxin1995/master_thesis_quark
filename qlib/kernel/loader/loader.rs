@@ -192,7 +192,30 @@ pub fn LoadExecutable(
 
         if SliceCompare(&hdr, ELF_MAGIC.as_bytes()) {
             info!("start to load LoadElf name {:?}", filename);
-            let loaded = LoadElf(task, &file)?;
+            {
+                let mut measurement_manager = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+                while !measurement_manager.is_some() {
+                    measurement_manager = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+                }
+
+                let mut measurement_manager = measurement_manager.unwrap();
+
+                measurement_manager.init_runtime_binary_hash(&filename).unwrap();
+            }
+
+            let loaded = LoadElf(task, &file, &filename)?;
+
+            {
+                let mut measurement_manager = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+                while !measurement_manager.is_some() {
+                    measurement_manager = crate::shield::software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
+                }
+
+                let mut measurement_manager = measurement_manager.unwrap();
+
+                measurement_manager.check_runtime_binary_hash(&filename).unwrap();
+            }
+
             return Ok((loaded, executable, argv));
         } else if SliceCompare(&hdr[..2], INTERPRETER_SCRIPT_MAGIC.as_bytes()) {
             info!("start to load script {}", filename);
@@ -321,20 +344,19 @@ pub fn Load(
 
         let mut measurement_manager = measurement_manager.unwrap();
 
-        let res = measurement_manager.measure_stack(loaded.auxv.clone(), app_name.eq(name), task);
+        let res = measurement_manager.measure_stack(loaded.auxv.clone(), app_name.eq(name), task, filename);
         if res.is_err() {
             info!("Loadmeasurement_manager.measure_stack got error {:?}", res);
             return Err(res.err().unwrap());
         }
-
-        software_measurement= measurement_manager.get_measurement().unwrap();
+        software_measurement = measurement_manager.get_measurement().unwrap();
     }
 
     debug!("Load app_name {:?}, name {:?}, app_loaded {:?}, process id {:?}", app_name, name, app_loaded, task.Thread().ThreadGroup().ID());
       
 
-    if app_name.eq(name) {
-        debug!("Load attestation begin, the software measurement is {:?}", software_measurement);
+    if app_name.eq(name){
+        debug!("Load attestation begin");
 
         // trigger remote attestation and secret provisioning when the kernel is going to launch application binary first time
         // skip if application is restarted

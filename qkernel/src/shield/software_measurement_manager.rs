@@ -245,7 +245,7 @@ impl SoftwareMeasurementManager {
             if app_ref_measurement.eq(&tmp_measurement) {
                 self.load_app_end = true;
                 self.load_app_start = false;
-                info!("app restart successfully");
+                info!("app restart successfully, app_ref_measurement {:?}, tmp_measurement {:?}",app_ref_measurement, tmp_measurement);
                 self.tmp_measurement = String::new();
                 return Ok(());
             }
@@ -396,8 +396,10 @@ impl SoftwareMeasurementManager {
 
 
     pub fn init_shared_lib_hash (&mut self, shared_lib_name: &str) -> Result<()> {
-        info!("init_shared_lib_hash {:?}", shared_lib_name);
-        self.shared_lib_measurements.insert(shared_lib_name.to_string(), String::default());
+        if self.is_app_loaded && self.load_app_end{ 
+            info!("init_shared_lib_hash {:?}", shared_lib_name);
+            self.shared_lib_measurements.insert(shared_lib_name.to_string(), String::default());
+        }
         Ok(())
     }
 
@@ -405,29 +407,33 @@ impl SoftwareMeasurementManager {
 
     pub fn check_runtime_hash (&mut self, shared_lib_name: &str) -> Result<()> {
 
-        let hash = self.shared_lib_measurements.remove(shared_lib_name).unwrap();
+        
+        if self.is_app_loaded && self.load_app_end{ 
+            let hash = self.shared_lib_measurements.remove(shared_lib_name).unwrap();
 
-        match self.enclave_mode {
-            EnclaveMode::Development => {
-                error!("lib_name {:?}, measurement {:?}",shared_lib_name, hash)
-            }
-            EnclaveMode::Production =>  {
-                // compare the loadable with the hash in policy file
-
-                let reference = self.runtime_binary_reference_measurement.get(shared_lib_name).clone();
-
-                if reference.is_none() {
-                    panic!("check_runtime_binary_hash missing reference value binary_name {}, hashed value {}", shared_lib_name, hash);
+            match self.enclave_mode {
+                EnclaveMode::Development => {
+                    error!("lib_name {:?}, measurement {:?}",shared_lib_name, hash)
                 }
-
-                let ref_value = reference.unwrap();
-
-                if ref_value.eq(&hash) == false {
-                    panic!("check_runtime_binary_hash hash not match  binary_name {}, refernce {} hashed value {}", shared_lib_name, ref_value, hash);
+                EnclaveMode::Production =>  {
+                    // compare the loadable with the hash in policy file
+    
+                    let reference = self.runtime_binary_reference_measurement.get(shared_lib_name).clone();
+    
+                    if reference.is_none() {
+                        panic!("check_runtime_binary_hash missing reference value binary_name {}, hashed value {}", shared_lib_name, hash);
+                    }
+    
+                    let ref_value = reference.unwrap();
+    
+                    if ref_value.eq(&hash) == false {
+                        panic!("check_runtime_binary_hash hash not match  binary_name {}, refernce {} hashed value {}", shared_lib_name, ref_value, hash);
+                    }
+    
                 }
-
             }
         }
+
         Ok(())
     }
 

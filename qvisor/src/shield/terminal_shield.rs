@@ -42,7 +42,7 @@ pub trait TermianlIoShiled{
     fn write_buf(&self, task: &Task, to: i32, buf: &[u8]) -> Result<i64>;
     fn read_from_fifo(&self, fd:i32, task: &Task, buf: &mut DataBuff, count: usize) -> Result<i64>;
     fn write_to_tty (&self, host_fd: i32, task: &Task, src_buf: &mut DataBuff, count: usize) -> Result<i64>;
-    fn termianlIoEncryption(&self, src: &[IoVec], task: &Task) -> Result<(usize, Option<Vec::<IoVec>>)>;
+    fn termianlIoEncryption(&self, src: &[IoVec], task: &Task, inode_id: u64) -> Result<(usize, Option<Vec::<IoVec>>)>;
 }
 
 
@@ -58,7 +58,7 @@ impl TerminalShield {
 
 impl TermianlIoShiled for TerminalShield {
 
-    fn termianlIoEncryption(&self, _src: &[IoVec], _task: &Task) -> Result<(usize, Option<Vec::<IoVec>>)>{
+    fn termianlIoEncryption(&self, _src: &[IoVec], _task: &Task, _inode_id: u64) -> Result<(usize, Option<Vec::<IoVec>>)>{
         Err(Error::NotSupport)
     }
 

@@ -602,9 +602,10 @@ impl FileOperations for TTYFileOps {
         info!("tty WriteAt");
 
         let check_readlocked = TERMINAL_SHIELD.read();
-        
+
+        let inode_id = f.Dirent.inode.ID();
         // TODO: check if we need to encrypt the terminal
-        let (new_length, iov) = check_readlocked.termianlIoEncryption(srcs, task)?;
+        let (new_length, iov) = check_readlocked.termianlIoEncryption(srcs, task, inode_id)?;
 
         let iov_unrapt = iov.unwrap();
         let new_src =  &iov_unrapt[..];

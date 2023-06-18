@@ -11,7 +11,8 @@ use qlib::shield_policy::*;
 use qlib::linux_def::*;
 use qlib::kernel::task::*;
 use qlib::kernel::{SHARESPACE, IOURING, fd::*, boot::controller::HandleSignal};
-
+use shield::INODE_TRACKER;
+use shield::cryptographic_utilities::prepareEncodedIoFrame;
 // use log::{error, info, debug};
 
 lazy_static! {
@@ -21,6 +22,7 @@ lazy_static! {
 
 #[derive(Debug, Default)]
 pub struct TerminalShield {
+    policy: KbsPolicy,
     key: GenericArray<u8, U32>,
 }
 
@@ -45,7 +47,7 @@ pub trait TermianlIoShiled{
     fn write_buf(&self, task: &Task, to: i32, buf: &[u8]) -> Result<i64>;
     fn read_from_fifo(&self, fd:i32, task: &Task, buf: &mut DataBuff, count: usize) -> Result<i64>;
     fn write_to_tty (&self, host_fd: i32, task: &Task, src_buf: &mut DataBuff, count: usize) -> Result<i64>;
-    fn termianlIoEncryption(&self, src: &[IoVec], task: &Task) -> Result<(usize, Option<Vec::<IoVec>>)>;
+    fn termianlIoEncryption(&self, src: &[IoVec], task: &Task, inode_id: u64) -> Result<(usize, Option<Vec::<IoVec>>)>;
 }
 
 
@@ -54,10 +56,11 @@ pub const ENABLE_RINGBUF: bool = true;
 
 impl TerminalShield {
 
-    pub fn init(&mut self, _policy: &KbsPolicy, key: &GenericArray<u8, U32>) -> () {
+    pub fn init(&mut self, policy: &KbsPolicy, key: &GenericArray<u8, U32>) -> () {
     
        // self.key = policy.unwrap().secret.file_encryption_key.as_bytes().to_vec();
         self.key = key.clone();
+        self.policy = policy.clone();
     }
 
 }
@@ -67,47 +70,57 @@ impl TerminalShield {
 
 impl TermianlIoShiled for TerminalShield {
 
-    fn termianlIoEncryption(&self, src: &[IoVec], task: &Task) -> Result<(usize, Option<Vec::<IoVec>>)>{
+    fn termianlIoEncryption(&self, src: &[IoVec], task: &Task,  inode_id: u64) -> Result<(usize, Option<Vec::<IoVec>>)>{
         let size = IoVec::NumBytes(src);
         if size == 0 {
             return Ok((0, None));
         }
 
+        let trackedInodeType;
+        {
+            let inode_checker_locked =  INODE_TRACKER.read();
+            trackedInodeType= inode_checker_locked.getInodeType(&inode_id);
+        }
+
+
+
+        let tty_args;
+        match trackedInodeType {
+            TrackInodeType::TTY(args) => {
+                tty_args=args;     
+            },
+            _=> {
+                return Err(Error::Common("termianlIoEncryption failed to get tty args".to_string()));
+            }
+        };
+
         let mut vec = Vec::<IoVec>::new();
         let mut src_buf = DataBuff::New(size);
         let _ = task.CopyDataInFromIovs(&mut src_buf.buf, src, true)?;
-
         let rawData= src_buf.buf.clone();
-
+    
         let str = String::from_utf8_lossy(&rawData).to_string();
 
         info!("terminal output is : {:?}", str);
+        
+        debug!("termianlIoEncryption stdio_type {:?}, policy enable_container_logs_encryption: {:?}", tty_args.stdio_type, self.policy.privileged_user_config.enable_container_logs_encryption);
 
-        //let encodedOutBoundDate = self.prepareEncodedIoFrame(rawData.as_slice()).unwrap();
-        let encodedOutBoundDate = rawData;
-        let mut encrypted_iov = DataBuff::New(encodedOutBoundDate.len());
-        encrypted_iov.buf = encodedOutBoundDate.clone();
-        vec.push(encrypted_iov.IoVec(encodedOutBoundDate.len()));
-        return Ok((encodedOutBoundDate.len(), Some(vec)));
+        if tty_args.stdio_type == StdioType::ContaienrStdio && self.policy.privileged_user_config.enable_container_logs_encryption {
 
+            let encodedOutBoundDate = prepareEncodedIoFrame(rawData.as_slice(), &self.key).unwrap();
+            let mut encrypted_iov = DataBuff::New(encodedOutBoundDate.len());
+            encrypted_iov.buf = encodedOutBoundDate.clone();
+            vec.push(encrypted_iov.IoVec(encodedOutBoundDate.len()));
+            return Ok((encodedOutBoundDate.len(), Some(vec)));
+        
 
-        // let mut new_len : usize = 0;
-        // let mut vec = Vec::<IoVec>::new();
-
-        // for iov in src {
-        //     let mut buf= DataBuff::New(iov.len);
-        //     let _ = task.CopyDataInFromIovs(&mut buf.buf, &[iov.clone()], true)?;
-        //     let rawData= buf.buf.clone();
-        //     let encodedOutBoundDate = self.prepareEncodedIoFrame(rawData.as_slice()).unwrap();
-        //     //let encodedOutBoundDate = rawData;
-        //     let mut encrypted_iov = DataBuff::New(encodedOutBoundDate.len());
-        //     encrypted_iov.buf = encodedOutBoundDate.clone();
-        //     vec.push(encrypted_iov.IoVec(encodedOutBoundDate.len()));
-        //     new_len = new_len + encodedOutBoundDate.len();
-        // }
-
-        // return Ok((new_len, Some(vec)));
-    
+        } else {
+            let encodedOutBoundDate = rawData;
+            let mut encrypted_iov = DataBuff::New(encodedOutBoundDate.len());
+            encrypted_iov.buf = encodedOutBoundDate.clone();
+            vec.push(encrypted_iov.IoVec(encodedOutBoundDate.len()));
+            return Ok((encodedOutBoundDate.len(), Some(vec)));
+        }    
     }
 
     fn console_copy_from_fifo_to_tty(&self, fifo_fd: i32, tty_fd: i32, cid: &str, pid: i32, _filter_sig: bool, task: &Task) -> Result<i64> {

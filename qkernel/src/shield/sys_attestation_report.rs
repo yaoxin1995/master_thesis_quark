@@ -53,6 +53,7 @@ pub struct SoftwareBasedAttestationReport {
     signature: Vec<u8>,
     software_measurement: Vec<u8>,
     user_data_hash: Vec<u8>,
+    enclave_id: Vec<u8>
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -173,6 +174,7 @@ fn get_software_based_attestation_report(user_requset: Requst, user_data: Vec<u8
         signature: sig.signature_bytes().to_vec(),
         software_measurement: raw_software_measurement,
         user_data_hash : raw_hash_of_user_data,
+        enclave_id: Vec::new()
     };
 
 

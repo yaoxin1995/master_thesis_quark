@@ -200,7 +200,7 @@ pub fn LoadExecutable(
 
                 let mut measurement_manager = measurement_manager.unwrap();
 
-                measurement_manager.init_runtime_binary_hash(&filename).unwrap();
+                measurement_manager.init_binary_hash(&filename).unwrap();
             }
 
             let loaded = LoadElf(task, &file, &filename)?;
@@ -213,7 +213,7 @@ pub fn LoadExecutable(
 
                 let mut measurement_manager = measurement_manager.unwrap();
 
-                measurement_manager.check_runtime_binary_hash(&filename).unwrap();
+                measurement_manager.check_binary_hash(&filename).unwrap();
             }
 
             return Ok((loaded, executable, argv));
@@ -345,7 +345,7 @@ pub fn Load(
 
         let mut measurement_manager = measurement_manager.unwrap();
 
-        let res = measurement_manager.measure_stack(loaded.auxv.clone(), app_name.eq(name), filename);
+        let res = measurement_manager.check_before_app_starts( app_name.eq(name), filename);
         if res.is_err() {
             info!("Loadmeasurement_manager.measure_stack got error {:?}", res);
             return Err(res.err().unwrap());

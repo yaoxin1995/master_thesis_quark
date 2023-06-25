@@ -513,8 +513,9 @@ pub extern "C" fn rust_main(
             measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
         }
 
+        let config = crate::SHARESPACE.config.read().clone();
         let mut measurement_manager = measurement_manager.unwrap();
-        let res = measurement_manager.measure_qkernel_argument(heapStart, shareSpaceAddr, id, vdsoParamAddr, vcpuCnt, autoStart);
+        let res = measurement_manager.measure_qkernel_argument(config);
         if res.is_err() {
             panic!("measure_qkernel_argument got error {:?}", res);
         }

@@ -959,7 +959,7 @@ pub fn close(task: &Task, fd: i32) -> Result<()> {
 
         let pid = task.Thread().ThreadGroup().ID();
         let file_name_key = format!("{} {}", pid, file_name);
-        measurement_manager.check_runtime_hash(&file_name_key).unwrap();
+        measurement_manager.check_shared_lib_hash(&file_name_key).unwrap();
     }
 
 

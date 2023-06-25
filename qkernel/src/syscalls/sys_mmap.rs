@@ -149,7 +149,7 @@ pub fn SysMmap(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
         let (file_name, _) = file.Dirent.FullName(&root);
         let pid = task.Thread().ThreadGroup().ID();
         let file_name_key = format!("{} {}", pid, file_name);
-        measurement_manager.measure_shared_lib(start_adr, &file, &task, fixed, len, offset, file_name_key).unwrap();
+        measurement_manager.measure_shared_lib_loadable_segment(start_adr, &file, &task, fixed, len, offset, file_name_key).unwrap();
     }
 
     Ok(start_adr as i64)

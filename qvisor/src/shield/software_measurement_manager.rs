@@ -6,7 +6,7 @@ use crate::qlib::kernel::task::Task;
 use crate::qlib::loader::Process;
 use crate::qlib::auxv::AuxEntry;
 
-
+use crate::Config;
 const APP_NMAE: &str = "APPLICATION_NAME"; 
 
 lazy_static! {
@@ -46,7 +46,7 @@ impl SoftwareMeasurementManager {
         Err(Error::NotSupport)
     }
 
-    pub fn measure_qkernel_argument (&mut self, _heapStart: u64, _shareSpaceAddr: u64, _id: u64, _svdsoParamAddr: u64, _vcpuCnt: u64, _autoStart: bool) ->  Result<()> {
+    pub fn measure_qkernel_argument (&mut self, _config: Config) ->  Result<()> {
         Err(Error::NotSupport)
     }
 
@@ -54,7 +54,7 @@ impl SoftwareMeasurementManager {
      *  Only measure the auxv we got from elf file is enough,
      *  Other data like, envv, argv, are measuared by `measure_process_spec`
      */
-    pub fn measure_stack(&mut self, _auxv: Vec<AuxEntry>, _is_app: bool, binary: &str) -> Result<()> {
+    pub fn check_before_app_starts(&mut self, _is_app: bool, binary: &str) -> Result<()> {
         Err(Error::NotSupport)
     }
 
@@ -62,7 +62,7 @@ impl SoftwareMeasurementManager {
         Err(Error::NotSupport)
     }
 
-    pub fn measure_shared_lib(&mut self) -> Result<()> {
+    pub fn measure_shared_lib_loadable_segment(&mut self) -> Result<()> {
         Err(Error::NotSupport)
     }
 
@@ -71,14 +71,14 @@ impl SoftwareMeasurementManager {
     }
 
     
-    pub fn init_runtime_binary_hash (&mut self, binary_name: &str) -> Result<()> {
+    pub fn init_binary_hash (&mut self, binary_name: &str) -> Result<()> {
 
         Ok(())
     }
 
 
 
-    pub fn check_runtime_binary_hash (&mut self, binary_name: &str) -> Result<()> {
+    pub fn check_binary_hash (&mut self, binary_name: &str) -> Result<()> {
 
         Ok(())
     }

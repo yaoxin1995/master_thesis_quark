@@ -336,12 +336,15 @@ pub fn Load(
     let mut stack = Stack::New(stackRange.End());
 
     let software_measurement;
+    let sm_cert;
 
     {
         let mut measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
         while !measurement_manager.is_some() {
             measurement_manager = software_measurement_manager::SOFTMEASUREMENTMANAGER.try_write();
         }
+
+
 
         let mut measurement_manager = measurement_manager.unwrap();
 
@@ -351,6 +354,8 @@ pub fn Load(
             return Err(res.err().unwrap());
         }
         software_measurement = measurement_manager.get_measurement().unwrap();
+
+        sm_cert = measurement_manager.get_sm_certificate().unwrap();
     }
 
 
@@ -364,7 +369,7 @@ pub fn Load(
         // trigger remote attestation and secret provisioning when the kernel is going to launch application binary first time
         // skip if application is restarted
         if !app_loaded {
-            let res = https_attestation_provisioning_cli::provisioning_http_client(task, &software_measurement);
+            let res = https_attestation_provisioning_cli::provisioning_http_client(task, &software_measurement, sm_cert);
             if res.is_err() {
                 info!("https_attestation_provisioning_cli::provisioning_http_client(task) got error {:?}", res);
                 return Err(res.err().unwrap());

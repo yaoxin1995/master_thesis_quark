@@ -23,6 +23,6 @@ pub enum Tee {
 
 
 
-pub fn provisioning_http_client(_task: &Task, _software_maasurement: &str) -> Result<(KbsPolicy, KbsSecrets)> {
+pub fn provisioning_http_client(_task: &Task, _software_maasurement: &str, _: Vec<u8>) -> Result<(KbsPolicy, KbsSecrets)> {
     Err(Error::NotSupport)
 }

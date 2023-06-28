@@ -643,9 +643,9 @@ fn StartRootContainer(_para: *const u8) -> ! {
         let mut measurement_manager = measurement_manager.unwrap();
 
 
-        let res = measurement_manager.measure_process_spec(&process, true);
+        let res = measurement_manager.start_track_app_creation(&process, true);
         if res.is_err() {
-            error!("StartRootContainer measure_process_spec(&processSpec) got error {:?}", res);
+            error!("StartRootContainer start_track_app_creation(&processSpec) got error {:?}", res);
             SHARESPACE.StoreShutdown();
             Kernel::HostSpace::ExitVM(2);
             panic!("exiting ...");

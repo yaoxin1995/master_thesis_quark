@@ -33,7 +33,7 @@ impl StdoutExecResultShiled{
     pub fn init(&mut self, _policy: &Policy, _key: &GenericArray<u8, U32>) -> () {
     }
 
-    pub fn encryptContainerStdouterr (&self, _src: DataBuff, _user_type: Option<UserType>, _stdio_type: StdioType) -> Result<DataBuff> {
+    pub fn encrypNormalIOStdouterr (&self, _src: DataBuff, _: u64) -> Result<DataBuff> {
         Err(Error::NotSupport)
     }
 }

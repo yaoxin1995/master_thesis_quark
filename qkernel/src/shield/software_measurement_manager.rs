@@ -1,7 +1,3 @@
-use core::clone;
-use core::intrinsics::offset;
-
-use alloc::string;
 use alloc::vec::Vec;
 use spin::rwlock::RwLock;
 use alloc::string::{String, ToString};
@@ -9,9 +5,7 @@ use crate::qlib::common::*;
 use qlib::addr::Addr;
 use crate::qlib::kernel::task::Task;
 use crate::qlib::loader::Process;
-use qlib::auxv::AuxEntry;
 use qlib::path::*;
-use qlib::linux_def::*;
 use fs::file::File;
 use alloc::collections::btree_map::BTreeMap;
 use shield::EnclaveMode;
@@ -38,7 +32,7 @@ struct QKernelArgs {
 enum MeasurementType{
     AppRef,
     Global,
-    Tmp
+    Restart
 }
 
 
@@ -57,11 +51,13 @@ pub struct SoftwareMeasurementManager {
     enclave_ref_measurement: String,
     // measurement that tracks the application rebuilding process (app exit, k8s tries to restart the app)
     // if the tmp_measurement doesn't match the  app_ref_measurement, panic!!! 
-    tmp_bianry_measurement : String,
+    restart_bianry_measurement : String,
 
     //记录lib测量过程中的值 
     shared_lib_measurements: BTreeMap<String, String>,
-    runtime_binary_measurement:  BTreeMap<String, String>,
+    binary_measurement:  BTreeMap<String, String>,
+
+    
     runtime_binary_reference_measurement:  BTreeMap<String, String>,
 
     //记录lib测量的结果
@@ -123,7 +119,7 @@ impl SoftwareMeasurementManager {
         let measurement = match m_type {
             MeasurementType::Global => self.global_measurement.clone(),
             MeasurementType::AppRef => self.app_ref_measurement.clone(),
-            MeasurementType::Tmp => self.tmp_bianry_measurement.clone(),   
+            MeasurementType::Restart => self.restart_bianry_measurement.clone(),   
         };
 
         let chunks = vec![
@@ -135,16 +131,16 @@ impl SoftwareMeasurementManager {
         match m_type {
             MeasurementType::Global => self.global_measurement = hash_res,
             MeasurementType::AppRef => self.app_ref_measurement = hash_res,
-            MeasurementType::Tmp => self.tmp_bianry_measurement = hash_res,   
+            MeasurementType::Restart => self.restart_bianry_measurement = hash_res,   
         };
 
         Ok(())
     }
 
-    pub fn measure_process_spec(&mut self, proc_spec: &Process, is_root: bool) -> Result<()> {
+    pub fn start_track_app_creation(&mut self, proc_spec: &Process, is_root: bool) -> Result<()> {
 
         self.load_app_end = false;
-        self.tmp_bianry_measurement = String::default();
+        self.restart_bianry_measurement = String::default();
         self.restart_shared_lib_measurement_results = BTreeMap::default();
 
 
@@ -152,7 +148,7 @@ impl SoftwareMeasurementManager {
         process.Terminal = proc_spec.Terminal;
         
 
-        // info!("measure_process_spec {:?}", process_spec);
+        // info!("start_track_app_creation {:?}", process_spec);
 
         if is_root == false {
             self.load_app_start = true;
@@ -162,18 +158,18 @@ impl SoftwareMeasurementManager {
 
         let proccess_spec_vec = serde_json::to_vec(&process);
         if proccess_spec_vec.is_err() {
-            info!("measure_process_spec serde_json::to_vec(proc_spec) get error");
-            return Err(Error::Common("measure_process_spec serde_json::to_vec(proc_spec) get error".to_string()));
+            info!("start_track_app_creation serde_json::to_vec(proc_spec) get error");
+            return Err(Error::Common("start_track_app_creation serde_json::to_vec(proc_spec) get error".to_string()));
         }
 
         let proccess_spec_vec_in_bytes = proccess_spec_vec.unwrap();
         // app restart
         if self.is_app_loaded && !self.load_app_end && self.load_app_start{
-            info!("measure_process_spec app restart");
-            self.updata_measurement(proccess_spec_vec_in_bytes, MeasurementType::Tmp).unwrap();            
+            info!("start_track_app_creation app restart");
+            self.updata_measurement(proccess_spec_vec_in_bytes, MeasurementType::Restart).unwrap();            
         // during app first time loading
         } else if !self.is_app_loaded && !self.load_app_end && self.load_app_start {
-            info!("measure_process_spec app load");
+            info!("start_track_app_creation app load");
             self.updata_measurement(proccess_spec_vec_in_bytes.clone(), MeasurementType::AppRef).unwrap();
             self.updata_measurement(proccess_spec_vec_in_bytes, MeasurementType::Global).unwrap();
             // app runtime 
@@ -213,7 +209,7 @@ impl SoftwareMeasurementManager {
 
     /**
      *  Only measure the auxv we got from elf file is enough,
-     *  Other data like, envv, argv, are measuared by `measure_process_spec`
+     *  Other data like, envv, argv, are measuared by `start_track_app_creation`
      */
     pub fn check_before_app_starts(&mut self, is_app: bool, binary_name: &str) -> Result<()> {
 
@@ -224,9 +220,9 @@ impl SoftwareMeasurementManager {
         // app restart, app binary loading is finished
         } else if self.is_app_loaded && !self.load_app_end && self.load_app_start && is_app{
             let app_ref_measurement = self.app_ref_measurement.clone();
-            let tmp_bianry_measurement = self.tmp_bianry_measurement.clone();
+            let restart_bianry_measurement = self.restart_bianry_measurement.clone();
 
-            if app_ref_measurement.eq(&tmp_bianry_measurement) {
+            if app_ref_measurement.eq(&restart_bianry_measurement) {
                 self.load_app_end = true;
                 self.load_app_start = false;
                 for (k, v) in &self.restart_shared_lib_measurement_results {
@@ -240,13 +236,13 @@ impl SoftwareMeasurementManager {
                         panic!("restart failed, during restart  app load buggy shared lib   shared lib name {:?}, reference hash {:?}, measured_hahs {:?}", k, ref_hash, v);
                     }
                 }
-                info!("app restart successfully, binary_ref_measurement {:?}, tmp_binary_measurement {:?}",app_ref_measurement, tmp_bianry_measurement);
+                info!("app restart successfully, binary_ref_measurement {:?}, tmp_binary_measurement {:?}",app_ref_measurement, restart_bianry_measurement);
                 self.restart_shared_lib_measurement_results = BTreeMap::new();
-                self.tmp_bianry_measurement = String::new();
+                self.restart_bianry_measurement = String::new();
                 return Ok(());
             }
 
-            panic!("tmp_measurement doesn't match the app_ref_measurement {:?}, k8s tries to restart application using bad bainary {:?}", app_ref_measurement, tmp_bianry_measurement);
+            panic!("tmp_measurement doesn't match the app_ref_measurement {:?}, k8s tries to restart application using bad bainary {:?}", app_ref_measurement, restart_bianry_measurement);
         // during app first time loading
         } else if !self.is_app_loaded && !self.load_app_end && self.load_app_start && !is_app {
         // app first time loading us finished
@@ -306,9 +302,9 @@ impl SoftwareMeasurementManager {
 
         let loadable = data.unwrap();
 
-        let current_hash = self.runtime_binary_measurement.remove(file_name);
+        let current_hash = self.binary_measurement.remove(file_name);
         if current_hash.is_none() {
-            panic!("measure_elf_loadable_segment  binary_name {:?}, hashmap {:?}", file_name, self.runtime_binary_measurement);
+            panic!("measure_elf_loadable_segment  binary_name {:?}, hashmap {:?}", file_name, self.binary_measurement);
         }
         let current_hash = current_hash.unwrap();
 
@@ -317,7 +313,7 @@ impl SoftwareMeasurementManager {
             loadable.clone()
         ];
         let hash_res = super::hash_chunks(chunks);
-        self.runtime_binary_measurement.insert(file_name.to_string(), hash_res);
+        self.binary_measurement.insert(file_name.to_string(), hash_res);
         
     
         Ok(())
@@ -448,7 +444,7 @@ impl SoftwareMeasurementManager {
     pub fn init_binary_hash (&mut self, binary_name: &str) -> Result<()> {
         //runtime
         info!("init_runtime_binary_hash {:?}", binary_name);
-        self.runtime_binary_measurement.insert(binary_name.to_string(), String::default());
+        self.binary_measurement.insert(binary_name.to_string(), String::default());
         Ok(())
     }
 
@@ -457,15 +453,15 @@ impl SoftwareMeasurementManager {
     pub fn check_binary_hash (&mut self, binary_name: &str) -> Result<()> {
 
 
-        let hash = self.runtime_binary_measurement.remove(binary_name);
+        let hash = self.binary_measurement.remove(binary_name);
         if hash.is_none() {
-            panic!("check_runtime_binary_hash  binary_name {:?}, hashmap {:?}", binary_name, self.runtime_binary_measurement);
+            panic!("check_runtime_binary_hash  binary_name {:?}, hashmap {:?}", binary_name, self.binary_measurement);
         }
         let hash = hash.unwrap();
 
         // app retart
         if self.is_app_loaded && !self.load_app_end && self.load_app_start{
-            self.updata_measurement(hash.into_bytes().to_vec(), MeasurementType::Tmp).unwrap();
+            self.updata_measurement(hash.into_bytes().to_vec(), MeasurementType::Restart).unwrap();
         // during app first time loading
         } else if !self.is_app_loaded && !self.load_app_end && self.load_app_start{
             // info!("measure_elf_loadable_segment during app first time loading global_measurement {:?}  app_reference_measurement {:?}", self.global_measurement, self.app_ref_measurement);

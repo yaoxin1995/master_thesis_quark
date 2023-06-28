@@ -1074,79 +1074,14 @@ fn get_kbs_signing_key(tls: &mut TlsConnection<ShieldProvisioningHttpSClient, Ae
 
 
 
-static sm_public_key: &str = "-----BEGIN CERTIFICATE-----
-MIIFpTCCA42gAwIBAgIULvXWmNPCFjJu2uVNzdZcXOCBQzEwDQYJKoZIhvcNAQEL
-BQAwYjELMAkGA1UEBhMCQ04xDzANBgNVBAgMBkZ1amlhbjEPMA0GA1UEBwwGWGlh
-bWVuMRAwDgYDVQQKDAdUVmxpbnV4MQwwCgYDVQQLDANPcmcxETAPBgNVBAMMCG11
-cm8ubHhkMB4XDTIzMDMyMTA4MDc0MFoXDTI0MDMyMDA4MDc0MFowYjELMAkGA1UE
-BhMCQ04xDzANBgNVBAgMBkZ1amlhbjEPMA0GA1UEBwwGWGlhbWVuMRAwDgYDVQQK
-DAdUVmxpbnV4MQwwCgYDVQQLDANPcmcxETAPBgNVBAMMCG11cm8ubHhkMIICIjAN
-BgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAqE+uf1V7IF2bW8+GCHoaZhv2s9mq
-LIl2DL5igKI5zhN0Rd1Npri6HladZvdd4LFSubleUyDxXvJgW0kZUZjJGYT4Xh1m
-z18btIbBkCuXJ+mj+54gZx9k+SHn6FXumCmJU/U8e0u7NYI8pCsm5WJC20XeT36u
-gr6UKxlcS/0Rvcrj6rT1yJwtmyJhakUvYQsYdIkA6EHljKONp2tJpYigLL7wAmp6
-zE/geiVaUsiSYjsgZ6ok4VKkmciIzNtSIECxSRKE8FH/ZkzwN6zd+0frLieFXA1C
-8ILjUuBFw0EWJpQ/Hyja/fipharAhfi2PFIUmO4dc7+A1mUOCu1DDldUNK0P/3R0
-XzVfPvxgyQqILSNpJzfiSh27jVnE+05+eQMmrv7hdha0umPm698LViVen0WUg1vX
-i3SDjRvWmPJc8rB1E5GToT2izlOuGl3a9y5Nf6S+0Y3qI4aA7tigQ6ZFE95Z5Hjk
-QzcQIQBtGqGF6/zXYTfgPOf3rVsutSdrUte6SmspCavkkzkAiSTvGOlg+7E3Zdkm
-STOLb39DSNruFS5sbc5b5SbO+5hOWAVgS3G8n5yCuTaf0gZqoNtgTXRIFEJ3IoUG
-ismgV095apMNvlRO3jE5kxxm2APvR/UCSwdW6gXpDxSLhGCWsOpDAyjyd91Pv9pv
-pouVBuC4P7FrrbECAwEAAaNTMFEwHQYDVR0OBBYEFDDKb87/G7ObyvxKD0uz0i0R
-Dna0MB8GA1UdIwQYMBaAFDDKb87/G7ObyvxKD0uz0i0RDna0MA8GA1UdEwEB/wQF
-MAMBAf8wDQYJKoZIhvcNAQELBQADggIBAJA1EgZMUbGcOSdr1Nr2GiSk8qwurXOP
-UpnKu+1yd/2RH1N0LISbHAJdfSAux944V7yRBRryvfhjkEtFSoO6xBw75Duxj4YF
-5SxTQqqBH0S4DIC0sMDBdVf4wXA/JPENAA70M5Ik8Nk+DwxOIqj3yPe0eUMYHAqs
-FqUOZ9tmPyJVrYqnLA00aCxmWlYPSSwznfVV//O6rmqrNi+45h6/bLc9bpL2h85L
-pYhjZeavZ/kCkj4WdzeOK357FoMO2+19IBcBdw6XC40IrpYjWtOwX0i9fNu4uwwI
-zZkR1kW6Op7MIHOCrC04p+pP3lT0DOtaM1jBTafGTEYo5YsRiYEeevpOBi/voKK7
-yM64iW8d7votMFaZVuLONlMl1Z8RWd8BrkZxGiU4vMlgh/DQ0eMtgNeo4HFeVRKR
-0zh/6//5we3W7Fajj4UD+DWCjPUwkywyfpEWXh50tQaZkmtThvpKRa0wgfAo9xPl
-OFZMfQ5opw0KvaLQ/nNky8J7KExUwQXxC4l5NoBfND0Ko1V9HlvwjykhdPh5gU/W
-Xwtzrarbi2fpDtV2uA+DBmL6cJINs+57AfwZY4Tw5THueHzzIBxpXg2Jb8cOoGV1
-Xkb4wqCU8LzWmLjcj08dgS0HcMkrZvCKoDSJHCjp4LoW9DmbX9txpYowG+gbicbC
-hKrHmm0FCGs2
------END CERTIFICATE-----";
-
-use syscalls::sys_file::openAt;
-use syscalls::sys_read::readv;
 
 
-fn get_sm_public_key(task: &Task)-> Result<Vec<u8>> {
-
-    let path = "/usr/local/secret_manager_cert.pem";
-
-    let fd = openAt(task, -1, path.to_string(), false, Flags::O_RDWR as u32)?;
-    assert!(fd > 1);
-
-    let file = task.GetFile(fd)?;
-
-    let uattr = file.UnstableAttr(task)?;
-
-    let mut buf = Vec::with_capacity(uattr.Size as usize);
-
-    info!("secret_manager_cert.pem size {:?}  len {:?}", uattr, buf.len());
-    buf.resize(uattr.Size as usize, 0);
-
-    let iov = IoVec::New(&buf);
 
 
-    let mut iovs: [IoVec; 1] = [iov];
-
-    let n = readv(task, &file, &mut iovs)?;
-    assert!(n == uattr.Size);
-
-
-    return Ok(buf)
-}
-
-
-pub fn provisioning_http_client(task: &Task, software_maasurement: &str) -> Result<(KbsPolicy, KbsSecrets)> {
+pub fn provisioning_http_client(task: &Task, software_maasurement: &str, sm_cert: Vec<u8>) -> Result<(KbsPolicy, KbsSecrets)> {
 
     log::debug!("provisioning_http_client start");
 
-
-    let sm_cert = get_sm_public_key(task).unwrap();
 
     let socket_to_sm = get_socket(task, SECRET_MANAGER_IP, SECRET_MANAGER_PORT)
         .map_err(|e| Error::Common(format!("provisioning_http_client get_socket get error {:?}", e)))?;

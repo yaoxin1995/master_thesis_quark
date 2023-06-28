@@ -11,6 +11,9 @@ use alloc::collections::btree_map::BTreeMap;
 use shield::EnclaveMode;
 use shield::RuntimeReferenceMeasurement;
 use crate::qlib::config::Config;
+use syscalls::sys_file::openAt;
+use syscalls::sys_read::readv;
+use qlib::linux_def::*;
 
 const APP_NMAE: &str = "APPLICATION_NAME"; 
 const SHARED_LIB_PATTERN: &str = ".so"; 
@@ -63,6 +66,8 @@ pub struct SoftwareMeasurementManager {
     //记录lib测量的结果
     startup_shared_lib_measurement_results:  BTreeMap<String, String>,
     restart_shared_lib_measurement_results:  BTreeMap<String, String>,
+
+    sm_certiface: Vec<u8>
 }
 
 
@@ -109,6 +114,12 @@ impl SoftwareMeasurementManager {
         for item in runtime_reference_measurement {
             self.runtime_binary_reference_measurement.insert(item.binary_name.clone(), item.reference_measurement.clone());
         }
+
+        let task = Task::Current();
+        self.sm_certiface = get_sm_public_key(task).unwrap();
+
+        self.updata_measurement(self.sm_certiface.clone(), MeasurementType::Global).unwrap();
+
         Ok(())
     }
 
@@ -253,14 +264,14 @@ impl SoftwareMeasurementManager {
 
 
             let mut lib_hashes = String::default();
-            for (key, value) in &self.startup_shared_lib_measurement_results {
+            for (_key, value) in &self.startup_shared_lib_measurement_results {
 
                 let chunks = vec![
                     lib_hashes.as_bytes().to_vec(),
                     value.as_bytes().to_vec()
                 ];
 
-                let lib_hashes = super::hash_chunks(chunks);
+                lib_hashes = super::hash_chunks(chunks);
             }
 
             let chunks = vec![
@@ -319,7 +330,7 @@ impl SoftwareMeasurementManager {
         Ok(())
     }
 
-    pub fn measure_shared_lib_loadable_segment(&mut self, start_addr: u64, file: &File, task: &Task, fixed: bool, mmmap_len: u64, offset: u64, file_name: String) -> Result<()> {
+    pub fn measure_shared_lib_loadable_segment(&mut self, start_addr: u64, file: &File, task: &Task, fixed: bool, mmmap_len: u64, _offset: u64, file_name: String) -> Result<()> {
 
         let uattr = file.UnstableAttr(task)?;
         let real_mmap_size = if uattr.Size as u64 > mmmap_len {
@@ -360,8 +371,12 @@ impl SoftwareMeasurementManager {
         Ok(self.enclave_ref_measurement.clone())
     }
 
+    pub fn get_sm_certificate(&self) -> Result<Vec<u8>> {
 
+        Ok(self.sm_certiface.clone())
+    }
 
+    
     pub fn init_shared_lib_hash (&mut self, shared_lib_name: &str) -> Result<()> {
         info!("init_shared_lib_hash {:?}", shared_lib_name);
         self.shared_lib_measurements.insert(shared_lib_name.to_string(), String::default());
@@ -499,6 +514,36 @@ impl SoftwareMeasurementManager {
     }
 
 }
+
+
+fn get_sm_public_key(task: &Task)-> Result<Vec<u8>> {
+
+    let path = "/usr/local/secret_manager_cert.pem";
+
+    let fd = openAt(task, -1, path.to_string(), false, Flags::O_RDWR as u32)?;
+    assert!(fd > 1);
+
+    let file = task.GetFile(fd)?;
+
+    let uattr = file.UnstableAttr(task)?;
+
+    let mut buf = Vec::with_capacity(uattr.Size as usize);
+
+    info!("secret_manager_cert.pem size {:?}  len {:?}", uattr, buf.len());
+    buf.resize(uattr.Size as usize, 0);
+
+    let iov = IoVec::New(&buf);
+
+
+    let mut iovs: [IoVec; 1] = [iov];
+
+    let n = readv(task, &file, &mut iovs)?;
+    assert!(n == uattr.Size);
+
+
+    return Ok(buf)
+}
+
 
 
 

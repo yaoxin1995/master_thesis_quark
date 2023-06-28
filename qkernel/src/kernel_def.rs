@@ -236,7 +236,9 @@ pub fn switch(from: TaskId, to: TaskId) {
 }
 
 pub fn OpenAt(task: &Task, dirFd: i32, addr: u64, flags: u32) -> Result<i32> {
-    return openAt(task, dirFd, addr, flags);
+
+    let (path, dirPath) = copyInPath(task, addr, false)?;
+    return openAt(task, dirFd, path, dirPath, flags);
 }
 
 pub fn StartRootContainer(para: *const u8) {

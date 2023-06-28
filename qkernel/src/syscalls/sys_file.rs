@@ -143,10 +143,13 @@ pub fn SysOpenAt(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
         return Ok(res as i64);
     }
 
-    let res = openAt(task, dirFd, addr, flags)?;
+    
+    let (path, dirPath) = copyInPath(task, addr, false)?;
+
+    let res = openAt(task, dirFd, path, dirPath, flags)?;
     return Ok(res as i64);
 }
-
+ 
 pub fn CleanOpenFlags(flags: i32) -> Result<i32> {
     let mut flags = flags & (Flags::O_ACCMODE
         | Flags::O_CREAT
@@ -213,7 +216,9 @@ pub fn SysOpen(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
         return Ok(res as i64);
     }
 
-    let res = openAt(task, ATType::AT_FDCWD, addr, flags as u32)?;
+    let (path, dirPath) = copyInPath(task, addr, false)?;
+
+    let res = openAt(task, ATType::AT_FDCWD, path, dirPath, flags as u32)?;
     return Ok(res as i64);
 }
 
@@ -231,11 +236,8 @@ pub fn SysCreate(task: &mut Task, args: &SyscallArguments) -> Result<i64> {
     return Ok(res as i64);
 }
 
-pub fn openAt(task: &Task, dirFd: i32, addr: u64, flags: u32) -> Result<i32> {
-    //task.PerfGoto(PerfType::Open);
-    //defer!(task.PerfGofrom(PerfType::Open));
+pub fn openAt(task: &Task, dirFd: i32, path: String, dirPath: bool, flags: u32) -> Result<i32> {
 
-    let (path, dirPath) = copyInPath(task, addr, false)?;
 
     debug!(
         "openat path is {}, the perm is {:?}, current is {}",

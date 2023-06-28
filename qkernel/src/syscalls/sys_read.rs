@@ -284,7 +284,7 @@ fn RepReadv(task: &Task, f: &File, dsts: &mut [IoVec]) -> Result<i64> {
     return Ok(count);
 }
 
-fn readv(task: &Task, f: &File, dsts: &mut [IoVec]) -> Result<i64> {
+pub fn readv(task: &Task, f: &File, dsts: &mut [IoVec]) -> Result<i64> {
     let mut iovs = task.AdjustIOVecPermission(dsts, true, true)?;
     let dsts = &mut iovs;
 

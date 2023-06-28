@@ -17,6 +17,7 @@ use sha2::{Sha256};
 use hmac::{Hmac, Mac};
 use base64ct::{Base64, Encoding};
 use super::cryptographic_utilities::{prepareEncodedIoFrame, decrypt};
+use shield::INODE_TRACKER;
 
 const PRIVILEGE_KEYWORD_INDEX: usize = 0;
 const HMAC_INDEX: usize = 1;
@@ -50,7 +51,30 @@ impl StdoutExecResultShiled{
     }
 
 
-    pub fn encryptContainerStdouterr (&self, src: DataBuff, user_type: Option<UserType>, stdio_type: StdioType) -> Result<DataBuff> {
+    pub fn encrypNormalIOStdouterr (&self, src: DataBuff, inode_id: u64) -> Result<DataBuff> {
+
+        let inode_checker_locked =  INODE_TRACKER.read();
+        inode_checker_locked.isInodeExist(&inode_id);
+        let trackedInodeType = inode_checker_locked.getInodeType(&inode_id);
+
+        let arg;
+        match trackedInodeType {
+            TrackInodeType::Stdout(args) => {
+                arg = args;
+            },
+            TrackInodeType::Stderro (args) => {
+                arg = args;
+            },
+            _ => {
+                return Ok(src);
+            },
+        };
+
+
+
+        let user_type = arg.exec_user_type;
+        let stdio_type = arg.stdio_type;
+    
 
         debug!("encryptContainerStdouterr 00000000, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
         // case 0: if this is a unprivileged exec req in single cmd mode

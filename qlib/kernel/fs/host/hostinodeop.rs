@@ -764,7 +764,7 @@ impl HostInodeOp {
         // info!("buf before {:?}, len: {:?}, {:?}", buf, len, String::from_utf8_lossy(&buf.buf));
 
         let stdout_shiled_readlocked = STDOUT_EXEC_RESULT_SHIELD.read();
-        let inode_checker_locked =  INODE_TRACKER.read();
+
         
         /* 
             Stdin/out/err is named piple, so it's inode type is InodeType::Pipe
@@ -773,24 +773,12 @@ impl HostInodeOp {
             // assert!(len == buf.Len());
             // info!("write data, inode_id {:?}", inode_id);
             let old_len = len;
-            if inodeType == InodeType::Pipe && inode_checker_locked.isInodeExist(&inode_id){
-                let trackedInodeType = inode_checker_locked.getInodeType(&inode_id);
-                match trackedInodeType {
-                    TrackInodeType::Stdout(args) => {
-                        buf = stdout_shiled_readlocked.encryptContainerStdouterr(buf, args.exec_user_type, args.stdio_type).unwrap();
-                        len = buf.Len();
-                    },
-                    TrackInodeType::Stderro (args) => {
-                        buf = stdout_shiled_readlocked.encryptContainerStdouterr(buf, args.exec_user_type, args.stdio_type).unwrap();
-                        len = buf.Len();
-                    },
-                    _ => {
-
-                    },
-                };
+            if inodeType == InodeType::Pipe {
+                buf = stdout_shiled_readlocked.encrypNormalIOStdouterr(buf, inode_id).unwrap();
+                len = buf.Len();
+      
             }
             drop(stdout_shiled_readlocked);
-            drop(inode_checker_locked);
 
             iovs = buf.Iovs(len);
             let mut ret = IOWrite(hostIops.HostFd(), &iovs)?;

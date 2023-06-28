@@ -38,7 +38,7 @@ impl SoftwareMeasurementManager {
         Err(Error::NotSupport)
     }
 
-    pub fn measure_process_spec(&mut self, _proc_spec: &Process, _is_root: bool) -> Result<()> {
+    pub fn start_track_app_creation(&mut self, _proc_spec: &Process, _is_root: bool) -> Result<()> {
         Err(Error::NotSupport)
     }
 
@@ -52,7 +52,7 @@ impl SoftwareMeasurementManager {
 
     /**
      *  Only measure the auxv we got from elf file is enough,
-     *  Other data like, envv, argv, are measuared by `measure_process_spec`
+     *  Other data like, envv, argv, are measuared by `start_track_app_creation`
      */
     pub fn check_before_app_starts(&mut self, _is_app: bool, binary: &str) -> Result<()> {
         Err(Error::NotSupport)

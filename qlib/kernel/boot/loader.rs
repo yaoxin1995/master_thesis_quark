@@ -394,9 +394,9 @@ impl Loader {
 
             measurement_manager.set_application_name(&processSpec.Envs)?;
 
-            let res = measurement_manager.measure_process_spec(&processSpec, false);
+            let res = measurement_manager.start_track_app_creation(&processSpec, false);
             if res.is_err() {
-                info!("StartSubContainer measure_process_spec(&processSpec) got error {:?}", res);
+                info!("StartSubContainer start_track_app_creation(&processSpec) got error {:?}", res);
                 return Err(res.err().unwrap());
             }
         }

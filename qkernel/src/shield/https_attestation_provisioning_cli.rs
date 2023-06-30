@@ -879,6 +879,8 @@ fn send_http_request_to_sm (tls: &mut TlsConnection<ShieldProvisioningHttpSClien
     resp_len
 }
 
+
+
 fn set_up_tls<'a>(client: &'a ShieldProvisioningHttpSClient, read_record_buffer: &'a mut [u8], write_record_buffer: &'a mut [u8], rng: &mut OsRng, certificate: Vec<u8>) -> core::result::Result<TlsConnection<'a, ShieldProvisioningHttpSClient, Aes128GcmSha256>, embedded_tls::TlsError> {
 
     // TODO: figur out the server name

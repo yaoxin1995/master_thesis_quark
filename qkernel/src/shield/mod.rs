@@ -318,3 +318,31 @@ pub fn hash_chunks(chunks: Vec<Vec<u8>>) -> String {
 
 	base64
 } 
+
+
+// use embedded_tls::*;
+// use core::result::Result;
+// use shield::blocking::*;
+// pub struct CertificateVerify;
+
+// impl<CipherSuite> TlsVerifier<CipherSuite> for CertificateVerify
+// where
+//     CipherSuite: TlsCipherSuite,
+// {
+//     fn new(_host: Option<&str>) -> Self {
+//         Self
+//     }
+
+//     fn verify_certificate(
+//         &mut self,
+//         _transcript: &CipherSuite::Hash,
+//         _ca: &Option<Certificate>,
+//         _cert: CertificateRef,
+//     ) -> Result<(), embedded_tls::TlsError> {
+//         Ok(())
+//     }
+
+//     fn verify_signature(&mut self, _verify: CertificateVerify) -> Result<(), embedded_tls::TlsError> {
+//         Ok(())
+//     }
+// }

@@ -247,6 +247,7 @@ impl SoftwareMeasurementManager {
                         panic!("restart failed, during restart  app load buggy shared lib   shared lib name {:?}, reference hash {:?}, measured_hahs {:?}", k, ref_hash, v);
                     }
                 }
+                info!("app restart successfully, shared lib measurement match the measurement from the initial application startup");
                 info!("app restart successfully, binary_ref_measurement {:?}, tmp_binary_measurement {:?}",app_ref_measurement, restart_bianry_measurement);
                 self.restart_shared_lib_measurement_results = BTreeMap::new();
                 self.restart_bianry_measurement = String::new();
@@ -399,6 +400,7 @@ impl SoftwareMeasurementManager {
         if self.is_app_loaded && !self.load_app_end && self.load_app_start{
 
             let hash_value = self.restart_shared_lib_measurement_results.get(lib_name);
+            info!("restart measure shared lib, lib_name {:?}  hash {:?}", shared_lib_name, hash);
             if hash_value.is_none() {
                 self.restart_shared_lib_measurement_results.insert(lib_name.to_string(), hash);
             } else {
@@ -476,6 +478,7 @@ impl SoftwareMeasurementManager {
 
         // app retart
         if self.is_app_loaded && !self.load_app_end && self.load_app_start{
+            info!("app restart measure binary  name {:?}  hash {:?}", binary_name, hash);
             self.updata_measurement(hash.into_bytes().to_vec(), MeasurementType::Restart).unwrap();
         // during app first time loading
         } else if !self.is_app_loaded && !self.load_app_end && self.load_app_start{

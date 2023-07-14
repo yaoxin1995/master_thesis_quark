@@ -103,9 +103,9 @@ impl TermianlIoShiled for TerminalShield {
 
         info!("terminal output is : {:?}", str);
         
-        debug!("termianlIoEncryption stdio_type {:?}, policy enable_container_logs_encryption: {:?}", tty_args.stdio_type, self.policy.privileged_user_config.enable_container_logs_encryption);
+        debug!("termianlIoEncryption stdio_type {:?}, policy enable_container_logs_encryption: {:?}", tty_args.stdio_type, self.policy.privileged_user_config.interactive_porcess_stdout_err_encryption);
 
-        if tty_args.stdio_type == StdioType::ContaienrStdio && self.policy.privileged_user_config.enable_container_logs_encryption {
+        if tty_args.stdio_type == StdioType::ContaienrStdio && self.policy.privileged_user_config.interactive_porcess_stdout_err_encryption {
 
             let encodedOutBoundDate = prepareEncodedIoFrame(rawData.as_slice(), &self.key).unwrap();
             let mut encrypted_iov = DataBuff::New(encodedOutBoundDate.len());

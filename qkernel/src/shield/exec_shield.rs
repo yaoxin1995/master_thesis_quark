@@ -87,14 +87,14 @@ impl StdoutExecResultShiled{
             // case 1: if this is subcontainer stdout / stderr
             StdioType::ContaienrStdio => {
                 debug!("case 1:if this is subcontainer stdout / stderr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
-                if self.policy.privileged_user_config.enable_container_logs_encryption == false {
+                if self.policy.privileged_user_config.no_interactive_process_stdout_err_encryption == false {
                     return Ok(src);
                 }
             },
             // case 2: if this is a privileged exec req in single cmd mode
             StdioType::ExecProcessStdio => {
                 debug!("case 2:if this is subcontainer stdout / stderr, user_type:{:?}, stdio_type {:?}", user_type, stdio_type);
-                if self.policy.privileged_user_config.exec_result_encryption == false {
+                if self.policy.privileged_user_config.no_interactive_process_stdout_err_encryption == false {
                     return Ok(src);
                 }
             },
@@ -396,8 +396,7 @@ fn verify_privileged_req (exec_req_args: ExecAuthenAcCheckArgs, exec_ac: &mut Rw
         ExecRequestType::Terminal => {
             info!("verify_privileged_req, exec_req_args.req_type {:?}", exec_req_args.req_type);
             let policy = &exec_ac.policy;
-            let res = check_terminal_access_control (UserType::Privileged, policy);
-
+            let res = check_oneshot_cmd_mode_access_control(UserType::Privileged, &cmd_in_plain_text, policy, &exec_req_args.cwd);
             if res == false {
                 return false;
             }
@@ -459,8 +458,7 @@ fn verify_unprivileged_req (exec_req_args: ExecAuthenAcCheckArgs, exec_ac: &mut 
     //TODO Access Control
     match exec_req_args.req_type {
         ExecRequestType::Terminal => {
-            let res = check_terminal_access_control (UserType::Unprivileged, policy);
-
+            let res = check_oneshot_cmd_mode_access_control(UserType::Unprivileged, &cmd_in_plain_text, policy, &exec_req_args.cwd);
             if res == false {
                 return false;
             }
@@ -489,20 +487,6 @@ fn verify_unprivileged_req (exec_req_args: ExecAuthenAcCheckArgs, exec_ac: &mut 
     return true;
 }
 
-
-fn check_terminal_access_control (user_type: UserType, policy: &KbsPolicy) -> bool {
-
-    match user_type {
-        UserType::Privileged => {
-            return policy.privileged_user_config.enable_terminal;
-        },
-        UserType::Unprivileged => {
-            return policy.unprivileged_user_config.enable_terminal;
-        }
-    }
-}
-
-
 fn check_oneshot_cmd_mode_access_control (user_type: UserType, cmd : &Vec<String>, policy: &KbsPolicy, cwd: &String) -> bool {
 
 
@@ -510,17 +494,27 @@ fn check_oneshot_cmd_mode_access_control (user_type: UserType, cmd : &Vec<String
     let allowed_pathes;
     let is_sigle_shot_cmd_enabled = match user_type {
         UserType::Privileged => {
-            allowed_cmds = &policy.privileged_user_config.single_shot_command_line_mode_configs.allowed_cmd;
-            allowed_pathes = &policy.privileged_user_config.single_shot_command_line_mode_configs.allowed_dir;
+            allowed_cmds = &policy.privileged_user_config.allowed_cmd;
+            allowed_pathes = &policy.privileged_user_config.allowed_dir;
 
             info!("check_oneshot_cmd_mode_access_control UserType::Privileged, cmd {:?}, allowed_cmds {:?}, allowed_pathes {:?} cwd {:?}", cmd, allowed_cmds, allowed_pathes, cwd);
-            policy.privileged_user_config.enable_single_shot_command_line_mode
+            if allowed_cmds.is_empty() {
+                false
+            } else {
+                true
+            }
         },
         UserType::Unprivileged => {
-            allowed_cmds = &policy.unprivileged_user_config.single_shot_command_line_mode_configs.allowed_cmd;
-            allowed_pathes = &policy.unprivileged_user_config.single_shot_command_line_mode_configs.allowed_dir;
+            allowed_cmds = &policy.unprivileged_user_config.allowed_cmd;
+            allowed_pathes = &policy.unprivileged_user_config.allowed_dir;
             info!("check_oneshot_cmd_mode_access_control UserType::Unprivileged, cmd {:?}, allowed_cmds {:?}, allowed_pathes {:?} cwd {:?}", cmd, allowed_cmds, allowed_pathes, cwd);
-            policy.unprivileged_user_config.enable_single_shot_command_line_mode
+
+            if allowed_cmds.is_empty() {
+                false
+            } else {
+                true
+            }
+
         }
     };
     if is_sigle_shot_cmd_enabled == false {
@@ -577,13 +571,17 @@ fn is_path_allowed (cmd: &Vec<String>, allowed_paths: &Vec<String>, cwd: &str) -
 
     if cmd.len() == 1 {
 
+        if cmd[0] == "/bin/sh" || cmd[0] == "/bin/bash" || cmd[0] == "sh" {
+            return true
+        }
+
         let sub_paths = vec![cwd.to_string()];
 
         let is_allowed = is_subpaht_check(&sub_paths, allowed_paths);
 
         info!("is_path_allowed: cmd {:?} cwd: {:?}, allowed_path: {:?} isAllowed: {:?}", cmd, cwd, allowed_paths, is_allowed);
 
-        return is_allowed;
+        return true;
     }
 
     info!("is_path_allowed: cmd {:?} cwd: {:?}, allowed_path: {:?}", cmd, cwd, allowed_paths);

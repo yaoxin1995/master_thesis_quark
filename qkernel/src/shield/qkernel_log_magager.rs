@@ -28,7 +28,10 @@ pub fn qlog_magager_update(policy: &QlogPolicy) -> Result<()> {
 pub fn qlog_magager_init() -> Result<()> {
 
     let mut qloger = QLOGMANAGER.write();
-    qloger.policy = QlogPolicy::default();
+    // qloger.policy = QlogPolicy::default();
+
+    qloger.policy.allowed_max_log_level = QkernelDebugLevel::Off;
+    qloger.policy.enable = true;
     Ok(())
 }
 

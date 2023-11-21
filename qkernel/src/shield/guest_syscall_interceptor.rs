@@ -103,7 +103,7 @@ fn is_syscall_allowed(allowed_list: [u64; 8], syscall_num: u64)-> bool {
     let is_allowed = allowed_list[index as usize] & (1 << position_in_u64);
 
 
-    debug!("allowed_list {:?}, isyscall_num {:?}, is_allowed {:?} allowed_list[index as usize] {:b}, (1 << position_in_u64) {:?}, position_in_u64 {:?} index {:?}", allowed_list, syscall_num, is_allowed, allowed_list[index as usize], (1 << position_in_u64), position_in_u64, index);
+    debug!("allowed_list {:?}, isyscall_num {:?}, is_allowed {:?} allowed_list[index as usize] {:b}, position_in_u64 {:?} index {:?}", allowed_list, syscall_num, is_allowed, allowed_list[index as usize], position_in_u64, index);
     return is_allowed > 0;
 }
 
